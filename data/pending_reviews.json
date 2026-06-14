@@ -1,0 +1,28 @@
+{
+  "2a2cfa93": {
+    "correction": {
+      "original_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. Community Engagement: We actively engage with our community, including",
+      "corrected_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Equality Act 2010 and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. As an organisation delivering programmes within schools, we also recognise our responsibilities under the Public Sector Equality Duty (Section 149 of the Equality Act 2010), and are committed to advancing equality of opportunity and fostering good relations across all protected characteristics. Community Engagement: We actively engage with our community, including",
+      "wrong_reference": "Americans with Disabilities Act",
+      "correct_reference": "Equality Act 2010",
+      "severity": "High",
+      "description": "Policy references 'Americans with Disabilities Act' \u2014 a US law. Elevate operates in England. The correct legislation is the Equality Act 2010. This would be flagged immediately by any school or Ofsted inspector.",
+      "model_used": "claude-sonnet-4-6"
+    },
+    "created_at": "2026-06-13T11:50:37.470334",
+    "status": "pending"
+  },
+  "111d535f": {
+    "correction": {
+      "original_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. Community Engagement: We actively engage with our community, including",
+      "corrected_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Equality Act 2010 and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. As an organisation delivering programmes within schools, we also recognise our responsibilities under the Public Sector Equality Duty (Section 149 of the Equality Act 2010), and are committed to advancing equality of opportunity and fostering good relations across all protected characteristics. Community Engagement: We actively engage with our community, including",
+      "wrong_reference": "Americans with Disabilities Act",
+      "correct_reference": "Equality Act 2010",
+      "severity": "High",
+      "description": "Policy references 'Americans with Disabilities Act' \u2014 a US law. Elevate operates in England. The correct legislation is the Equality Act 2010. This would be flagged immediately by any school or Ofsted inspector.",
+      "model_used": "claude-sonnet-4-6"
+    },
+    "created_at": "2026-06-13T12:02:54.844636",
+    "status": "pending"
+  }
+}
