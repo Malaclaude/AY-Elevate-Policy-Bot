@@ -51,6 +51,11 @@ def detect_ada_error(policy_text: str) -> dict:
     }
 
 
+def detect_gap(policy_text: str) -> dict:
+    """Alias for detect_ada_error — main entry point."""
+    return detect_ada_error(policy_text)
+
+
 if __name__ == "__main__":
     # Quick test with sample text
     sample = """
@@ -60,8 +65,3 @@ if __name__ == "__main__":
     """
     result = detect_gap(sample)
     print(result)
-
-
-def detect_gap(policy_text: str) -> dict:
-    """Alias for detect_ada_error — main entry point."""
-    return detect_ada_error(policy_text)

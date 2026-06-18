@@ -23,6 +23,7 @@ def load_pending_reviews() -> dict:
 
 
 def save_pending_reviews(pending: dict):
+    os.makedirs(os.path.dirname(PENDING_REVIEWS_PATH), exist_ok=True)
     with open(PENDING_REVIEWS_PATH, "w") as f:
         json.dump(pending, f, indent=2)
 

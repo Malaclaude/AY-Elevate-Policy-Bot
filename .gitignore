@@ -2,6 +2,6 @@
 __pycache__/
 *.pyc
 logs/
-data/state.json
+data/
 credentials.json
 token.json

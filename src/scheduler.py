@@ -5,9 +5,7 @@ Also keeps the Flask approval webhook running at all times.
 This is the main entry point for Railway deployment.
 """
 
-import threading
 import logging
-from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
