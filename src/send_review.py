@@ -76,57 +76,150 @@ def save_pending_review(review_id: str, correction: dict):
 
 
 def build_email_html(correction: dict, review_id: str) -> str:
-    """Build a clean HTML email showing the before/after and approve button."""
+    """Build a clean, professional HTML email showing the before/after and action buttons."""
     approve_url = f"{APPROVE_BASE_URL}?id={review_id}"
+    date_str = datetime.utcnow().strftime('%d %B %Y')
 
     return f"""
     <html>
-    <body style="font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px;">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin:0; padding:0; background-color:#f4f4f7; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
 
-        <h2 style="color: #d9534f;">⚠️ Policy Review Required — Elevate Performance Academy</h2>
-        <p><strong>Flagged by:</strong> AY Policy Bot</p>
-        <p><strong>Date:</strong> {datetime.utcnow().strftime('%d %B %Y')}</p>
-        <p><strong>Policy:</strong> Accessibility and Inclusiveness Policy</p>
-        <p><strong>Severity:</strong> {correction['severity']}</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7; padding: 40px 20px;">
+        <tr>
+          <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; overflow:hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
 
-        <hr/>
+              <!-- Header -->
+              <tr>
+                <td style="background:#1a1a2e; padding: 32px 40px;">
+                  <p style="margin:0; color:#ffffff; font-size:13px; letter-spacing:2px; text-transform:uppercase; font-weight:600;">Adding You</p>
+                  <h1 style="margin:8px 0 0; color:#ffffff; font-size:22px; font-weight:600; letter-spacing:-0.3px;">Policy Compliance Review</h1>
+                </td>
+              </tr>
 
-        <h3>What the bot found</h3>
-        <p>{correction['description']}</p>
+              <!-- Status bar -->
+              <tr>
+                <td style="background:#f0f4ff; padding: 14px 40px; border-bottom: 1px solid #e8ecf4;">
+                  <table cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td style="font-size:13px; color:#555;">
+                        <strong style="color:#1a1a2e;">Client:</strong> Elevate Performance Academy
+                      </td>
+                      <td align="right" style="font-size:13px; color:#555;">
+                        <strong style="color:#1a1a2e;">Date:</strong> {date_str}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:13px; color:#555; padding-top:4px;">
+                        <strong style="color:#1a1a2e;">Policy:</strong> Accessibility and Inclusiveness Policy
+                      </td>
+                      <td align="right" style="font-size:13px; color:#555; padding-top:4px;">
+                        <span style="background:#fff0f0; color:#c0392b; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600;">Action Required</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
 
-        <h3>Original text</h3>
-        <div style="background:#fff3f3; border-left:4px solid #d9534f; padding:12px; margin:10px 0;">
-            <code>{correction['original_excerpt']}</code>
-        </div>
+              <!-- Body -->
+              <tr>
+                <td style="padding: 36px 40px;">
 
-        <h3>Suggested correction</h3>
-        <div style="background:#f3fff3; border-left:4px solid #5cb85c; padding:12px; margin:10px 0;">
-            <code>{correction['corrected_excerpt']}</code>
-        </div>
+                  <p style="margin:0 0 20px; font-size:15px; color:#333; line-height:1.6;">
+                    Our compliance monitoring system has identified an issue in Elevate's Accessibility and Inclusiveness Policy that requires your review and approval before it can be corrected.
+                  </p>
 
-        <p style="color:#888; font-size:12px;">
-            Always read the original source before approving:
-            <a href="https://www.legislation.gov.uk/ukpga/2010/15/contents">Equality Act 2010 — legislation.gov.uk</a>
-        </p>
+                  <!-- Issue box -->
+                  <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
+                    <tr>
+                      <td style="background:#fffbf0; border:1px solid #f0d080; border-radius:6px; padding:20px 24px;">
+                        <p style="margin:0 0 6px; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#b8860b;">Issue Identified</p>
+                        <p style="margin:0; font-size:14px; color:#333; line-height:1.6;">{correction['description']}</p>
+                      </td>
+                    </tr>
+                  </table>
 
-        <hr/>
+                  <!-- Current text -->
+                  <p style="margin:0 0 8px; font-size:13px; font-weight:700; color:#888; letter-spacing:0.5px; text-transform:uppercase;">Current Policy Text</p>
+                  <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+                    <tr>
+                      <td style="background:#fff5f5; border-left:3px solid #e74c3c; border-radius:0 4px 4px 0; padding:16px 20px;">
+                        <p style="margin:0; font-size:14px; color:#555; line-height:1.7; font-style:italic;">{correction['original_excerpt']}</p>
+                      </td>
+                    </tr>
+                  </table>
 
-        <h3>Your options</h3>
-        <p>
-            <a href="{approve_url}&action=approve"
-               style="background:#5cb85c; color:white; padding:12px 24px; text-decoration:none; border-radius:4px; margin-right:10px;">
-               ✅ Approve and publish
-            </a>
-            <a href="{approve_url}&action=reject"
-               style="background:#d9534f; color:white; padding:12px 24px; text-decoration:none; border-radius:4px;">
-               ❌ Reject / defer
-            </a>
-        </p>
+                  <!-- Suggested correction -->
+                  <p style="margin:0 0 8px; font-size:13px; font-weight:700; color:#888; letter-spacing:0.5px; text-transform:uppercase;">Suggested Correction</p>
+                  <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:12px;">
+                    <tr>
+                      <td style="background:#f0faf4; border-left:3px solid #27ae60; border-radius:0 4px 4px 0; padding:16px 20px;">
+                        <p style="margin:0; font-size:14px; color:#333; line-height:1.7;">{correction['corrected_excerpt']}</p>
+                      </td>
+                    </tr>
+                  </table>
 
-        <p style="color:#888; font-size:11px; margin-top:30px;">
-            This email was generated automatically by the AY Policy Bot.
-            Review ID: {review_id}. Bot does not publish without your approval.
-        </p>
+                  <p style="margin:0 0 32px; font-size:12px; color:#999;">
+                    Source: <a href="https://www.legislation.gov.uk/ukpga/2010/15/contents" style="color:#4a90d9; text-decoration:none;">Equality Act 2010, legislation.gov.uk</a>
+                  </p>
+
+                  <!-- Divider -->
+                  <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
+                    <tr><td style="border-top:1px solid #eee;"></td></tr>
+                  </table>
+
+                  <p style="margin:0 0 20px; font-size:15px; color:#333; font-weight:600;">Do you approve this correction?</p>
+
+                  <!-- Buttons -->
+                  <table cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding-right:12px;">
+                        <a href="{approve_url}&action=approve"
+                           style="display:inline-block; background:#27ae60; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:6px; text-decoration:none; letter-spacing:0.3px;">
+                          Approve Correction
+                        </a>
+                      </td>
+                      <td>
+                        <a href="{approve_url}&action=reject"
+                           style="display:inline-block; background:#ffffff; color:#555; font-size:14px; font-weight:600; padding:13px 28px; border-radius:6px; text-decoration:none; letter-spacing:0.3px; border:1px solid #ddd;">
+                          Decline
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <p style="margin:28px 0 0; font-size:13px; color:#999; line-height:1.6;">
+                    Approving will publish the corrected text to the Elevate policy folder. No changes are made without your explicit approval.
+                  </p>
+
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background:#f8f9fb; border-top:1px solid #eee; padding:24px 40px;">
+                  <table cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td style="font-size:12px; color:#aaa; line-height:1.6;">
+                        Adding You Ltd. | addingyou.com<br>
+                        This is an automated compliance alert. Reference: {review_id}
+                      </td>
+                      <td align="right" style="font-size:12px; color:#aaa;">
+                        Elevate Policy Bot
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
 
     </body>
     </html>
@@ -144,7 +237,7 @@ def send_review_email(correction: dict) -> str:
     service = get_gmail_service()
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[ACTION REQUIRED] Policy gap detected — Elevate Accessibility Policy"
+    msg["Subject"] = f"Action Required: Policy Correction Review - Elevate Performance Academy"
     msg["From"] = SENDER_EMAIL
     msg["To"] = REVIEWER_EMAIL
 
