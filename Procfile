@@ -1,1 +1,1 @@
-web: python src/approve_endpoint.py
+web: python src/scheduler.py
