@@ -29,43 +29,51 @@ def save_pending_reviews(pending: dict):
 
 
 def page(title, icon_html, headline, body_html, ref, timestamp):
-    """Render a branded confirmation page."""
+    """Render a branded, mobile-optimised confirmation page."""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{title}</title>
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{ margin:0; padding:0; background:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; }}
+    .wrapper {{ min-height:100vh; padding:40px 16px; display:flex; align-items:center; justify-content:center; }}
+    .card {{ background:#ffffff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden; width:100%; max-width:520px; }}
+    .card-top {{ background:#0f172a; height:5px; }}
+    .card-body {{ padding:48px 40px 40px; text-align:center; }}
+    .card-footer {{ background:#f8fafc; border-top:1px solid #f1f5f9; padding:18px 40px; text-align:center; }}
+    .brand {{ margin:0 0 28px; font-size:11px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:#94a3b8; }}
+    .headline {{ margin:20px 0 16px; font-size:24px; font-weight:700; color:#0f172a; letter-spacing:-0.3px; line-height:1.2; }}
+    .footer-text {{ margin:0; font-size:12px; color:#94a3b8; line-height:1.8; }}
+    .footer-text a {{ color:#94a3b8; text-decoration:none; }}
+    .doc-btn {{ display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none; margin-top:4px; }}
+    @media (max-width: 480px) {{
+      .card-body {{ padding:36px 24px 32px; }}
+      .card-footer {{ padding:16px 24px; }}
+      .headline {{ font-size:22px; }}
+    }}
+  </style>
 </head>
-<body style="margin:0; padding:0; background:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9; min-height:100vh; padding:60px 16px;">
-    <tr>
-      <td align="center" valign="middle">
-        <table width="520" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden;">
-          <tr>
-            <td style="background:#0f172a; height:5px; font-size:0; line-height:0;">&nbsp;</td>
-          </tr>
-          <tr>
-            <td style="padding:52px 52px 44px; text-align:center;">
-              <p style="margin:0 0 28px; font-size:11px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:#94a3b8;">Adding You</p>
-              {icon_html}
-              <h1 style="margin:20px 0 16px; font-size:26px; font-weight:700; color:#0f172a; letter-spacing:-0.5px; line-height:1.2;">{headline}</h1>
-              {body_html}
-            </td>
-          </tr>
-          <tr>
-            <td style="background:#f8fafc; border-top:1px solid #f1f5f9; padding:18px 52px; text-align:center;">
-              <p style="margin:0; font-size:12px; color:#94a3b8; line-height:1.6;">
-                <a href="https://addingyou.com" style="color:#94a3b8; text-decoration:none;">addingyou.com</a>
-                &nbsp;&middot;&nbsp; Ref: {ref}
-                &nbsp;&middot;&nbsp; {timestamp} UTC
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="card-top"></div>
+      <div class="card-body">
+        <p class="brand">Adding You</p>
+        {icon_html}
+        <h1 class="headline">{headline}</h1>
+        {body_html}
+      </div>
+      <div class="card-footer">
+        <p class="footer-text">
+          <a href="https://addingyou.com">addingyou.com</a><br>
+          Ref: {ref} &nbsp;&middot;&nbsp; {timestamp}
+        </p>
+      </div>
+    </div>
+  </div>
 </body>
 </html>"""
 
@@ -96,7 +104,7 @@ def register():
 def approve():
     review_id = request.args.get("id")
     action = request.args.get("action", "approve")
-    timestamp = datetime.utcnow().strftime('%d %B %Y, %H:%M')
+    timestamp = datetime.utcnow().strftime('%-d %B %Y at %H:%M UTC')
 
     if not review_id:
         return "Missing review ID.", 400
