@@ -6,6 +6,7 @@ Also exposes /register so the local bot can push review data up to Railway.
 
 import json
 import os
+import base64
 from datetime import datetime
 from flask import Flask, request, jsonify
 from publish_draft import publish_approved_correction
@@ -104,6 +105,7 @@ def register():
 def approve():
     review_id = request.args.get("id")
     action = request.args.get("action", "approve")
+    encoded_data = request.args.get("d")
     timestamp = datetime.utcnow().strftime('%-d %B %Y at %H:%M UTC')
 
     if not review_id:
@@ -111,19 +113,33 @@ def approve():
 
     pending = load_pending_reviews()
 
-    if review_id not in pending:
+    # Build a review object — prefer URL-encoded data (stateless, survives redeploys)
+    # Fall back to the stored file if URL data is missing
+    if encoded_data:
+        try:
+            correction = json.loads(base64.urlsafe_b64decode(encoded_data.encode()).decode())
+            if review_id not in pending:
+                review = {"correction": correction, "status": "pending"}
+            else:
+                review = pending[review_id]
+                review["correction"] = correction  # always trust URL data
+        except Exception as e:
+            print(f"Warning: could not decode URL data: {e}")
+            review = pending.get(review_id)
+    else:
+        review = pending.get(review_id)
+
+    if not review:
         return page(
             title="Not found",
             icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f1f5f9; border-radius:50%; border:2px solid #e2e8f0;">
               <span style="font-size:30px;">&#128269;</span>
             </div>""",
             headline="Review not found",
-            body_html="<p style='margin:0; font-size:15px; color:#64748b; line-height:1.7;'>This review ID was not found. It may have expired or already been processed.</p>",
+            body_html="<p style='margin:0; font-size:15px; color:#64748b; line-height:1.7;'>This review link has expired or already been processed.</p>",
             ref=review_id,
             timestamp=timestamp,
         ), 404
-
-    review = pending[review_id]
 
     if review["status"] != "pending":
         status = review["status"]

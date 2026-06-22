@@ -88,9 +88,16 @@ def save_pending_review(review_id: str, correction: dict):
         print(f"Warning: Could not register review on Railway: {e}")
 
 
+def encode_correction(correction: dict) -> str:
+    """Base64-encode the correction so it can travel in the URL."""
+    payload = json.dumps(correction, separators=(",", ":"))
+    return base64.urlsafe_b64encode(payload.encode()).decode()
+
+
 def build_email_html(correction: dict, review_id: str) -> str:
     """Build a premium, clean HTML review email."""
-    approve_url = f"{APPROVE_BASE_URL}?id={review_id}"
+    encoded = encode_correction(correction)
+    approve_url = f"{APPROVE_BASE_URL}?id={review_id}&d={encoded}"
     date_str = datetime.utcnow().strftime('%d %B %Y')
 
     return f"""<!DOCTYPE html>
