@@ -31,19 +31,29 @@ SENDER_EMAIL = os.getenv("SENDER_EMAIL", "joelleonmcfarlane@outlook.com")
 
 
 def get_gmail_service():
-    """Authenticate and return Gmail API service."""
+    """Authenticate and return Gmail API service.
+    Loads token from GOOGLE_TOKEN_JSON env var (Railway) or token.json (local).
+    """
+    import json as _json
     from google_auth_oauthlib.flow import InstalledAppFlow
     creds = None
-    if os.path.exists("token.json"):
+
+    token_env = os.getenv("GOOGLE_TOKEN_JSON")
+    if token_env:
+        token_data = _json.loads(token_env)
+        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+    elif os.path.exists("token.json"):
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
+            with open("token.json", "w") as token:
+                token.write(creds.to_json())
+
     return build("gmail", "v1", credentials=creds)
 
 

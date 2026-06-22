@@ -8,10 +8,11 @@ import os
 import zipfile
 import re
 
-# Local path to the policy file
+# Path to the policy file — relative to the repo root (policy-bot/)
+# The file must be at policy-bot/policies/baseline/Accessibility and Inclusiveness Policy.docx
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOCAL_POLICY_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "..", "policies", "baseline", "Accessibility and Inclusiveness Policy.docx"
+    REPO_ROOT, "policies", "baseline", "Accessibility and Inclusiveness Policy.docx"
 )
 
 
