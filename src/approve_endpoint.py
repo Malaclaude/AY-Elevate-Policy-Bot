@@ -106,7 +106,7 @@ def approve():
     review_id = request.args.get("id")
     action = request.args.get("action", "approve")
     encoded_data = request.args.get("d")
-    timestamp = datetime.utcnow().strftime('%-d %B %Y at %H:%M UTC')
+    timestamp = datetime.utcnow().strftime('%d %B %Y at %H:%M UTC')
 
     if not review_id:
         return "Missing review ID.", 400
@@ -177,6 +177,8 @@ def approve():
         except Exception as e:
             print(f"Warning: Drive publish failed: {e}")
 
+        if review_id not in pending:
+            pending[review_id] = {"correction": correction, "status": "pending"}
         pending[review_id]["status"] = "approved"
         pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
         if doc_url:
@@ -201,6 +203,8 @@ def approve():
         ), 200
 
     elif action == "reject":
+        if review_id not in pending:
+            pending[review_id] = {"status": "pending"}
         pending[review_id]["status"] = "rejected"
         pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
         save_pending_reviews(pending)
