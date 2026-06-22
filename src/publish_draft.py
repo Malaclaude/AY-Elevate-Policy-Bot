@@ -24,13 +24,30 @@ TARGET_FOLDER_NAME = "Elevate"
 
 
 def get_services():
-    """Authenticate and return Drive + Docs API services."""
+    """Authenticate and return Drive + Docs API services.
+    Loads token from GOOGLE_TOKEN_JSON env var (Railway) or token.json (local).
+    """
+    import json as _json
     creds = None
-    if os.path.exists("token.json"):
+
+    token_env = os.getenv("GOOGLE_TOKEN_JSON")
+    if token_env:
+        # Railway: token stored as env var
+        token_data = _json.loads(token_env)
+        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+    elif os.path.exists("token.json"):
+        # Local: token stored as file
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+
+    if not creds:
+        raise RuntimeError("No Google credentials found. Set GOOGLE_TOKEN_JSON env var on Railway.")
+
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
             creds.refresh(Request())
+        else:
+            raise RuntimeError("Google credentials are invalid and cannot be refreshed.")
+
     drive_service = build("drive", "v3", credentials=creds)
     docs_service = build("docs", "v1", credentials=creds)
     return drive_service, docs_service

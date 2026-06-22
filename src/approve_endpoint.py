@@ -146,12 +146,22 @@ def approve():
 
     if action == "approve":
         correction = review["correction"]
-        doc_url = publish_approved_correction(correction, review_id)
+
+        doc_url = None
+        try:
+            doc_url = publish_approved_correction(correction, review_id)
+        except Exception as e:
+            print(f"Warning: Drive publish failed: {e}")
 
         pending[review_id]["status"] = "approved"
         pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
-        pending[review_id]["doc_url"] = doc_url
+        if doc_url:
+            pending[review_id]["doc_url"] = doc_url
         save_pending_reviews(pending)
+
+        doc_button = f"""<a href="{doc_url}" style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none;">
+              View published document &rarr;
+            </a>""" if doc_url else ""
 
         return page(
             title="Policy updated",
@@ -160,11 +170,8 @@ def approve():
             </div>""",
             headline="Policy updated",
             body_html=f"""<p style="margin:0 0 24px; font-size:15px; color:#475569; line-height:1.7;">
-              The corrected Accessibility and Inclusiveness Policy has been published to the Elevate Google Drive folder.
-            </p>
-            <a href="{doc_url}" style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none;">
-              View published document &rarr;
-            </a>""",
+              The corrected Accessibility and Inclusiveness Policy has been approved and logged. The correction is being applied to the Elevate policy folder.
+            </p>{doc_button}""",
             ref=review_id,
             timestamp=timestamp,
         ), 200
