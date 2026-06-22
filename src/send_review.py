@@ -8,6 +8,7 @@ import os
 import base64
 import json
 import uuid
+import requests as http_requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
@@ -24,6 +25,7 @@ SCOPES = [
 ]
 
 APPROVE_BASE_URL = os.getenv("APPROVE_BASE_URL", "https://ay-elevate-policy-bot-production.up.railway.app/approve")
+RAILWAY_REGISTER_URL = os.getenv("RAILWAY_REGISTER_URL", "https://ay-elevate-policy-bot-production.up.railway.app/register")
 REVIEWER_EMAIL = os.getenv("REVIEWER_EMAIL", "malachiavstreih@gmail.com")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "joelleonmcfarlane@outlook.com")
 
@@ -70,6 +72,20 @@ def save_pending_review(review_id: str, correction: dict):
         json.dump(pending, f, indent=2)
 
     print(f"Review saved with ID: {review_id}")
+
+    # Push review to Railway so the approve webhook can find it
+    try:
+        resp = http_requests.post(RAILWAY_REGISTER_URL, json={
+            "review_id": review_id,
+            "correction": correction,
+            "created_at": datetime.utcnow().isoformat(),
+        }, timeout=10)
+        if resp.status_code == 200:
+            print(f"Review registered on Railway ({review_id})")
+        else:
+            print(f"Warning: Railway register returned {resp.status_code}")
+    except Exception as e:
+        print(f"Warning: Could not register review on Railway: {e}")
 
 
 def build_email_html(correction: dict, review_id: str) -> str:
