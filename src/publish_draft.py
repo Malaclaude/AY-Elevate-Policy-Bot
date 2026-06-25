@@ -26,27 +26,27 @@ TARGET_FOLDER_NAME = "Elevate"
 def get_services():
     """Authenticate and return Drive + Docs API services.
     Loads token from GOOGLE_TOKEN_JSON env var (Railway) or token.json (local).
+    Falls back to interactive OAuth on first-time local setup.
     """
     import json as _json
+    from google_auth_oauthlib.flow import InstalledAppFlow
     creds = None
 
     token_env = os.getenv("GOOGLE_TOKEN_JSON")
     if token_env:
-        # Railway: token stored as env var
         token_data = _json.loads(token_env)
         creds = Credentials.from_authorized_user_info(token_data, SCOPES)
     elif os.path.exists("token.json"):
-        # Local: token stored as file
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
 
-    if not creds:
-        raise RuntimeError("No Google credentials found. Set GOOGLE_TOKEN_JSON env var on Railway.")
-
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            raise RuntimeError("Google credentials are invalid and cannot be refreshed.")
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+            with open("token.json", "w") as f:
+                f.write(creds.to_json())
 
     drive_service = build("drive", "v3", credentials=creds)
     docs_service = build("docs", "v1", credentials=creds)
@@ -71,18 +71,64 @@ def find_folder_id(drive_service, folder_name: str) -> str:
     return files[0]["id"]
 
 
-def create_correction_doc(drive_service, docs_service, correction: dict, review_id: str, folder_id: str) -> str:
+def _build_doc_text(findings_or_correction, review_id: str, date_str: str) -> str:
+    """Build the plain-text body for the correction doc."""
+    header = (
+        f"ELEVATE PERFORMANCE ACADEMY — POLICY COMPLIANCE AUDIT\n"
+        f"{'=' * 60}\n\n"
+        f"Review ID:   {review_id}\n"
+        f"Approved:    {date_str}\n"
+        f"Approved by: Malachi (via email approval link)\n"
+        f"Bot version: AY Policy Bot v0.1\n\n"
+        f"DISCLAIMER: This report was generated automatically by the AY Policy Bot "
+        f"and approved by a human reviewer. It does not constitute legal advice. "
+        f"Elevate should apply these corrections to their live policy documents.\n\n"
+        f"{'=' * 60}\n\n"
+    )
+
+    # Normalise to list
+    if isinstance(findings_or_correction, dict):
+        findings = [findings_or_correction]
+    else:
+        findings = findings_or_correction
+
+    body = ""
+    for i, f in enumerate(findings):
+        source = f.get("source", {})
+        source_name = source.get("name", "") if isinstance(source, dict) else f.get("source_name", "")
+        source_url = source.get("url", "") if isinstance(source, dict) else f.get("source_url", "")
+
+        body += f"FINDING {i + 1} OF {len(findings)}\n"
+        body += f"{'─' * 40}\n"
+        body += f"Policy:   {f.get('policy_name', 'Unknown')}\n"
+        body += f"Severity: {f.get('severity', 'Unknown')}\n"
+        body += f"Source:   {source_name}\n"
+        body += f"URL:      {source_url}\n\n"
+        body += f"ISSUE\n{f.get('description', '')}\n\n"
+
+        original = f.get("original_excerpt", "") or ""
+        corrected = f.get("corrected_excerpt", "") or ""
+        gap_type = f.get("gap_type", "")
+
+        if original and gap_type in ("wrong_reference", "outdated_reference"):
+            body += f"ORIGINAL TEXT (incorrect)\n{original}\n\n"
+            body += f"CORRECTED TEXT (approved)\n{corrected}\n\n"
+        elif corrected:
+            body += f"RECOMMENDED ACTION\n{corrected}\n\n"
+
+        body += "\n"
+
+    return header + body
+
+
+def create_correction_doc(drive_service, docs_service, findings_or_correction, review_id: str, folder_id: str) -> str:
     """
-    Creates a new Google Doc with the correction details.
+    Creates a new Google Doc with all findings and their source links.
     Returns the URL of the created document.
     """
     date_str = datetime.utcnow().strftime("%d %B %Y")
-    doc_title = f"Accessibility Policy — Correction Approved {date_str} [{review_id}]"
-
-    # Create the document
-    doc_metadata = {"title": doc_title}
-    if folder_id:
-        doc_metadata["parents"] = [folder_id]
+    count = len(findings_or_correction) if isinstance(findings_or_correction, list) else 1
+    doc_title = f"Elevate Policy Audit — {count} finding{'s' if count != 1 else ''} approved {date_str} [{review_id}]"
 
     doc = drive_service.files().create(
         body={
@@ -94,60 +140,13 @@ def create_correction_doc(drive_service, docs_service, correction: dict, review_
     ).execute()
 
     doc_id = doc["id"]
+    full_text = doc_title + "\n\n" + _build_doc_text(findings_or_correction, review_id, date_str)
 
-    # Build the document content
-    content = [
-        # Title
-        {"insertText": {"location": {"index": 1}, "text": f"{doc_title}\n\n"}},
-
-        # Metadata block
-        {"insertText": {"location": {"index": len(doc_title) + 3}, "text":
-            f"Policy: Accessibility and Inclusiveness Policy\n"
-            f"Review ID: {review_id}\n"
-            f"Approved: {date_str}\n"
-            f"Approved by: Malachi (via email approval link)\n"
-            f"Bot version: AY Policy Bot v0.1 (demo slice)\n\n"
-        }},
-    ]
-
-    # Calculate current index after metadata
-    meta_text = (
-        f"Policy: Accessibility and Inclusiveness Policy\n"
-        f"Review ID: {review_id}\n"
-        f"Approved: {date_str}\n"
-        f"Approved by: Malachi (via email approval link)\n"
-        f"Bot version: AY Policy Bot v0.1 (demo slice)\n\n"
-    )
-    idx = len(doc_title) + 3 + len(meta_text)
-
-    # Gap description
-    gap_section = f"ISSUE DETECTED\n\n{correction['description']}\n\n"
-    content.append({"insertText": {"location": {"index": idx}, "text": gap_section}})
-    idx += len(gap_section)
-
-    # Before/after
-    before_section = f"ORIGINAL TEXT (incorrect)\n\n{correction['original_excerpt']}\n\n"
-    content.append({"insertText": {"location": {"index": idx}, "text": before_section}})
-    idx += len(before_section)
-
-    after_section = f"CORRECTED TEXT (approved)\n\n{correction['corrected_excerpt']}\n\n"
-    content.append({"insertText": {"location": {"index": idx}, "text": after_section}})
-    idx += len(after_section)
-
-    # Regulatory reference
-    ref_section = (
-        f"REGULATORY REFERENCE\n\n"
-        f"Equality Act 2010: https://www.legislation.gov.uk/ukpga/2010/15/contents\n"
-        f"Public Sector Equality Duty (s.149): https://www.legislation.gov.uk/ukpga/2010/15/section/149\n\n"
-        f"This document was generated automatically by the AY Policy Bot and approved by a human reviewer.\n"
-        f"It does not constitute legal advice. Elevate should apply this correction to their live policy document.\n"
-    )
-    content.append({"insertText": {"location": {"index": idx}, "text": ref_section}})
-
-    # Write all content in one batch
     docs_service.documents().batchUpdate(
         documentId=doc_id,
-        body={"requests": content},
+        body={"requests": [
+            {"insertText": {"location": {"index": 1}, "text": full_text}}
+        ]},
     ).execute()
 
     doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
@@ -155,11 +154,11 @@ def create_correction_doc(drive_service, docs_service, correction: dict, review_
     return doc_url
 
 
-def publish_approved_correction(correction: dict, review_id: str) -> str:
-    """Main entry point called by the approve webhook."""
+def publish_approved_correction(findings_or_correction, review_id: str) -> str:
+    """Main entry point called by the approve webhook. Accepts list of findings or legacy dict."""
     drive_service, docs_service = get_services()
     folder_id = find_folder_id(drive_service, TARGET_FOLDER_NAME)
-    doc_url = create_correction_doc(drive_service, docs_service, correction, review_id, folder_id)
+    doc_url = create_correction_doc(drive_service, docs_service, findings_or_correction, review_id, folder_id)
     return doc_url
 
 

@@ -82,20 +82,33 @@ def page(title, icon_html, headline, body_html, ref, timestamp):
 @app.route("/register", methods=["POST"])
 def register():
     """
-    Called by the local bot after drafting a correction.
+    Called by the local bot after running gap detection.
     Stores the review on Railway so the approve webhook can find it.
+    Accepts either 'findings' (list, new multi-finding flow) or 'correction' (dict, legacy).
     """
     data = request.get_json()
-    if not data or "review_id" not in data or "correction" not in data:
-        return jsonify({"error": "Missing review_id or correction"}), 400
+    if not data or "review_id" not in data:
+        return jsonify({"error": "Missing review_id"}), 400
 
     review_id = data["review_id"]
     pending = load_pending_reviews()
-    pending[review_id] = {
-        "correction": data["correction"],
-        "created_at": data.get("created_at", datetime.utcnow().isoformat()),
-        "status": "pending",
-    }
+
+    # Support both new (findings list) and legacy (correction dict) formats
+    if "findings" in data:
+        pending[review_id] = {
+            "findings": data["findings"],
+            "created_at": data.get("created_at", datetime.utcnow().isoformat()),
+            "status": "pending",
+        }
+    elif "correction" in data:
+        pending[review_id] = {
+            "correction": data["correction"],
+            "created_at": data.get("created_at", datetime.utcnow().isoformat()),
+            "status": "pending",
+        }
+    else:
+        return jsonify({"error": "Missing findings or correction"}), 400
+
     save_pending_reviews(pending)
     print(f"Review registered on Railway: {review_id}")
     return jsonify({"status": "ok", "review_id": review_id}), 200
@@ -200,20 +213,26 @@ def confirm():
 
     pending = load_pending_reviews()
 
-    # Decode correction from URL
+    # Decode findings (new format: list) or correction (legacy: dict) from URL
+    findings = None
     correction = None
     if encoded_data:
         try:
-            correction = json.loads(base64.urlsafe_b64decode(encoded_data.encode()).decode())
+            decoded = json.loads(base64.urlsafe_b64decode(encoded_data.encode()).decode())
+            if isinstance(decoded, list):
+                findings = decoded          # new multi-finding format
+            elif isinstance(decoded, dict):
+                correction = decoded        # legacy single-correction format
         except Exception as e:
-            print(f"Warning: could not decode correction: {e}")
+            print(f"Warning: could not decode URL data: {e}")
 
-    if not correction:
-        review = pending.get(review_id)
-        if review:
-            correction = review.get("correction")
+    # Fall back to stored data on Railway
+    if not findings and not correction:
+        review = pending.get(review_id, {})
+        findings = review.get("findings")
+        correction = review.get("correction")
 
-    if not correction:
+    if not findings and not correction:
         return page(
             title="Not found",
             icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f1f5f9; border-radius:50%; border:2px solid #e2e8f0;">
@@ -235,21 +254,29 @@ def confirm():
             icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f0fdf4; border-radius:50%; border:2px solid #bbf7d0;">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>""",
-            headline="Policy already updated",
-            body_html=f"<p style='margin:0; font-size:15px; color:#64748b; line-height:1.7;'>This correction has already been approved and published. Nothing more to do.</p>{doc_link}",
+            headline="Corrections already published",
+            body_html=f"<p style='margin:0; font-size:15px; color:#64748b; line-height:1.7;'>These corrections have already been approved and published. Nothing more to do.</p>{doc_link}",
             ref=review_id,
             timestamp=timestamp,
         ), 200
 
-    # Execute approval
+    # Execute approval — pass findings list if available, else legacy correction dict
     doc_url = None
     try:
-        doc_url = publish_approved_correction(correction, review_id)
+        if findings:
+            doc_url = publish_approved_correction(findings, review_id)
+        else:
+            doc_url = publish_approved_correction(correction, review_id)
     except Exception as e:
         print(f"Warning: Drive publish failed: {e}")
 
+    stored = {"status": "pending"}
+    if findings:
+        stored["findings"] = findings
+    else:
+        stored["correction"] = correction
     if review_id not in pending:
-        pending[review_id] = {"correction": correction, "status": "pending"}
+        pending[review_id] = stored
     pending[review_id]["status"] = "approved"
     pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
     if doc_url:
