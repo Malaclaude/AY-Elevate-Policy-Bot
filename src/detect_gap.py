@@ -74,7 +74,7 @@ def _excerpt(text: str, keyword: str, window: int = 250) -> str:
 # Individual gap checks
 # ─────────────────────────────────────────────
 
-def check_ada_error(policy_text: str) -> dict | None:
+def check_ada_error(policy_text: str):
     """
     Accessibility policy cites US ADA instead of UK Equality Act 2010.
     Detected by scanning the policy text.
@@ -106,7 +106,7 @@ def check_ada_error(policy_text: str) -> dict | None:
     return None
 
 
-def check_working_together_version(policy_text: str) -> dict | None:
+def check_working_together_version(policy_text: str):
     """
     Safeguarding policy cites Working Together 2018 — the current statutory version is 2023.
     Detected by text scan; also included as corpus-confirmed if text is the Accessibility policy.
@@ -156,7 +156,7 @@ def check_working_together_version(policy_text: str) -> dict | None:
     }
 
 
-def check_ofsted_camps_gap(policy_text: str) -> dict | None:
+def check_ofsted_camps_gap(policy_text: str):
     """
     No reference to Ofsted childcare registration or exemptions for sports camps.
     If Elevate runs holiday camps for under-8s, Ofsted registration may be required.
