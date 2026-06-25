@@ -180,9 +180,10 @@ def _finding_card(finding: dict, index: int) -> str:
           </table>"""
 
 
-def build_email_html(findings: list, review_id: str) -> str:
+def build_email_html(findings: list, review_id: str, test_mode: bool = False) -> str:
     encoded = encode_findings(findings)
-    approve_url = f"{APPROVE_BASE_URL}?id={review_id}&d={encoded}"
+    test_param = "&test=1" if test_mode else ""
+    approve_url = f"{APPROVE_BASE_URL}?id={review_id}&d={encoded}{test_param}"
     date_str = datetime.utcnow().strftime("%d %B %Y")
     count = len(findings)
     high_count = sum(1 for f in findings if f.get("severity") == "High")
@@ -310,11 +311,12 @@ def build_email_html(findings: list, review_id: str) -> str:
 </html>"""
 
 
-def send_review_email(findings_or_correction) -> str:
+def send_review_email(findings_or_correction, test_mode: bool = False) -> str:
     """
     Main entry point.
     Accepts either a list of findings (new multi-finding flow)
     or a single correction dict (legacy flow from scheduler).
+    test_mode=True: all buttons work but no changes are written to Drive.
     Returns the review_id.
     """
     if isinstance(findings_or_correction, dict):
@@ -328,16 +330,18 @@ def send_review_email(findings_or_correction) -> str:
     service = get_gmail_service()
 
     count = len(findings)
+    subject_prefix = "[TEST] " if test_mode else ""
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Policy audit — {count} issue{'s' if count != 1 else ''} found — Elevate Performance Academy"
+    msg["Subject"] = f"{subject_prefix}Policy audit — {count} issue{'s' if count != 1 else ''} found — Elevate Performance Academy"
     msg["From"] = SENDER_EMAIL
     msg["To"] = REVIEWER_EMAIL
 
-    html_content = build_email_html(findings, review_id)
+    html_content = build_email_html(findings, review_id, test_mode=test_mode)
     msg.attach(MIMEText(html_content, "html"))
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     service.users().messages().send(userId="me", body={"raw": raw}).execute()
 
-    print(f"Review email sent to {REVIEWER_EMAIL} (Review ID: {review_id}, {count} finding(s))")
+    mode_label = "TEST MODE — no Drive changes" if test_mode else "live"
+    print(f"Review email sent to {REVIEWER_EMAIL} (Review ID: {review_id}, {count} finding(s), {mode_label})")
     return review_id

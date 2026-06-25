@@ -149,7 +149,20 @@ def approve():
 
     # For approve: show confirmation page first.
     # Actual approval only fires on POST /confirm to prevent email client pre-fetching.
-    confirm_url = f"/confirm?id={review_id}&d={encoded_data}"
+    test_mode = request.args.get("test", "0") == "1"
+    test_param = "&test=1" if test_mode else ""
+    confirm_url = f"/confirm?id={review_id}&d={encoded_data}{test_param}"
+    test_banner = (
+        '<div style="background:#fef9c3; border:1px solid #fde68a; border-radius:8px; padding:10px 16px; margin-bottom:20px;">'
+        '<p style="margin:0; font-size:12px; font-weight:600; color:#92400e;">TEST MODE — clicking Confirm will NOT write to Drive or change any policies.</p>'
+        '</div>'
+    ) if test_mode else ""
+    confirm_label = "Confirm (test — no changes)" if test_mode else "Confirm approval"
+    subtext = (
+        "This is a test run. Clicking Confirm will complete the full approval flow but will not publish anything to Google Drive or modify any policy documents."
+        if test_mode else
+        "You are about to approve the compliance corrections. This will publish a full correction report to the Elevate Google Drive folder."
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -182,13 +195,14 @@ def approve():
       <div class="card-top"></div>
       <div class="card-body">
         <p class="brand">Adding You</p>
+        {test_banner}
         <div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f0fdf4; border-radius:50%; border:2px solid #bbf7d0;">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <h1 class="headline">Confirm approval</h1>
-        <p class="subtext">You are about to approve the correction to the Accessibility and Inclusiveness Policy. This will publish the updated text to the Elevate Google Drive folder.</p>
+        <p class="subtext">{subtext}</p>
         <form method="POST" action="{confirm_url}" style="display:inline;">
-          <button type="submit" class="btn-confirm">Confirm approval</button>
+          <button type="submit" class="btn-confirm">{confirm_label}</button>
         </form>
         <a href="javascript:history.back()" class="btn-cancel">Cancel</a>
       </div>
@@ -206,6 +220,7 @@ def confirm():
     """Executes the approval — only reachable by clicking the button, not by email pre-fetch."""
     review_id = request.args.get("id")
     encoded_data = request.args.get("d", "")
+    test_mode = request.args.get("test", "0") == "1"
     timestamp = datetime.utcnow().strftime('%d %B %Y at %H:%M UTC')
 
     if not review_id:
@@ -260,15 +275,18 @@ def confirm():
             timestamp=timestamp,
         ), 200
 
-    # Execute approval — pass findings list if available, else legacy correction dict
+    # Execute approval — skip Drive publish in test mode
     doc_url = None
-    try:
-        if findings:
-            doc_url = publish_approved_correction(findings, review_id)
-        else:
-            doc_url = publish_approved_correction(correction, review_id)
-    except Exception as e:
-        print(f"Warning: Drive publish failed: {e}")
+    if test_mode:
+        print(f"TEST MODE: skipping Drive publish for {review_id}")
+    else:
+        try:
+            if findings:
+                doc_url = publish_approved_correction(findings, review_id)
+            else:
+                doc_url = publish_approved_correction(correction, review_id)
+        except Exception as e:
+            print(f"Warning: Drive publish failed: {e}")
 
     stored = {"status": "pending"}
     if findings:
@@ -279,22 +297,29 @@ def confirm():
         pending[review_id] = stored
     pending[review_id]["status"] = "approved"
     pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
+    pending[review_id]["test_mode"] = test_mode
     if doc_url:
         pending[review_id]["doc_url"] = doc_url
     save_pending_reviews(pending)
 
-    doc_button = f"""<a href="{doc_url}" style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none;">
+    if test_mode:
+        body_text = "Test run complete. All findings were detected and corrections drafted correctly. No changes have been made to any policy documents."
+        doc_button = ""
+    else:
+        body_text = f"The compliance correction report for Elevate Performance Academy has been published to Google Drive."
+        doc_button = f"""<a href="{doc_url}" style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none;">
       View published document &rarr;
     </a>""" if doc_url else ""
 
+    headline = "Test complete" if test_mode else "Corrections approved"
     return page(
-        title="Policy updated",
+        title=headline,
         icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f0fdf4; border-radius:50%; border:2px solid #bbf7d0;">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>""",
-        headline="Policy updated",
+        headline=headline,
         body_html=f"""<p style="margin:0 0 24px; font-size:15px; color:#475569; line-height:1.7;">
-          The corrected Accessibility and Inclusiveness Policy has been published to the Elevate Google Drive folder.
+          {body_text}
         </p>{doc_button}""",
         ref=review_id,
         timestamp=timestamp,

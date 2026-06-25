@@ -23,9 +23,10 @@ from draft_correction import draft_all_corrections
 from send_review import send_review_email
 
 
-def run():
+def run(test_mode: bool = False):
+    mode_label = "TEST MODE — no Drive changes" if test_mode else "LIVE"
     print("=" * 60)
-    print("AY POLICY BOT — Elevate Performance Academy")
+    print(f"AY POLICY BOT — Elevate Performance Academy [{mode_label}]")
     print("Full compliance audit across all monitored sources")
     print("=" * 60)
 
@@ -57,14 +58,18 @@ def run():
 
     # Step 4: Send consolidated review email
     print("\n[4/4] Sending review email...")
-    review_id = send_review_email(enriched)
+    review_id = send_review_email(enriched, test_mode=test_mode)
 
     print("\n" + "=" * 60)
     print(f"DONE — Review ID: {review_id}")
     print(f"Email sent with {len(enriched)} finding(s), each with source link.")
-    print("Approve in email → confirmation page → Confirm → doc published to Drive.")
+    if test_mode:
+        print("TEST MODE: Approve button works but will NOT write to Drive.")
+    else:
+        print("Approve in email → confirmation page → Confirm → doc published to Drive.")
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    run()
+    test_mode = "--test" in sys.argv
+    run(test_mode=test_mode)
