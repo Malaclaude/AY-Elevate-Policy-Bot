@@ -181,9 +181,12 @@ def _finding_card(finding: dict, index: int) -> str:
 
 
 def build_email_html(findings: list, review_id: str, test_mode: bool = False) -> str:
-    encoded = encode_findings(findings)
+    # Do NOT embed findings in the URL — Safe Links (Outlook) URL-encodes it again
+    # and the resulting URL is too long for Safe Links to redirect, causing a 404.
+    # Findings are stored server-side via /register when the email is sent.
+    # /approve and /confirm read from stored data using only the review_id.
     test_param = "&test=1" if test_mode else ""
-    approve_url = f"{APPROVE_BASE_URL}?id={review_id}&d={encoded}{test_param}"
+    approve_url = f"{APPROVE_BASE_URL}?id={review_id}{test_param}"
     date_str = datetime.utcnow().strftime("%d %B %Y")
     count = len(findings)
     high_count = sum(1 for f in findings if f.get("severity") == "High")
