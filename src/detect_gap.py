@@ -94,6 +94,7 @@ def check_ada_error(policy_text: str):
                 "severity": "High",
                 "source": SOURCES["equality_act_2010"],
                 "wrong_reference": "Americans with Disabilities Act (ADA)",
+                "search_text": "Americans with Disabilities Act",
                 "correct_reference": "Equality Act 2010",
                 "description": (
                     "Policy cites the Americans with Disabilities Act — a US federal law with no legal standing in England. "
