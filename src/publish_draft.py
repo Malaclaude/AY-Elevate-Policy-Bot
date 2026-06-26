@@ -60,25 +60,55 @@ def get_services():
 
 
 def find_policy_doc(drive_service, search_term: str):
-    """Find a Google Doc in Drive by name. Returns (doc_id, doc_url) or (None, None)."""
+    """
+    Find a policy document in Drive by name. Returns (doc_id, doc_url) or (None, None).
+    Prefers native Google Docs. If only a .docx is found, auto-converts it to
+    Google Docs format in-place so replaceAllText can work on it.
+    """
+    GDOC_MIME = "application/vnd.google-apps.document"
+    DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
     results = drive_service.files().list(
         q=(
             f"name contains '{search_term}' "
-            f"and mimeType='application/vnd.google-apps.document' "
+            f"and (mimeType='{GDOC_MIME}' or mimeType='{DOCX_MIME}') "
             f"and trashed=false"
         ),
         spaces="drive",
-        fields="files(id, name)",
+        fields="files(id, name, mimeType, parents)",
         includeItemsFromAllDrives=True,
         supportsAllDrives=True,
     ).execute()
     files = results.get("files", [])
+
     if not files:
         print(f"Policy doc not found for search term: '{search_term}'")
         return None, None
-    doc_id = files[0]["id"]
+
+    # Prefer a native Google Doc if one already exists
+    gdocs = [f for f in files if f["mimeType"] == GDOC_MIME]
+    if gdocs:
+        doc_id = gdocs[0]["id"]
+        doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
+        print(f"Found Google Doc: '{gdocs[0]['name']}' ({doc_id})")
+        return doc_id, doc_url
+
+    # Only a .docx found — auto-convert to Google Docs format
+    docx = files[0]
+    print(f"Found .docx: '{docx['name']}' — converting to Google Docs format...")
+    parents = docx.get("parents", [])
+    converted = drive_service.files().copy(
+        fileId=docx["id"],
+        body={
+            "name": docx["name"].replace(".docx", "").replace(".doc", ""),
+            "mimeType": GDOC_MIME,
+            **({"parents": parents} if parents else {}),
+        },
+        supportsAllDrives=True,
+    ).execute()
+    doc_id = converted["id"]
     doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-    print(f"Found policy doc: '{files[0]['name']}' ({doc_id})")
+    print(f"Converted to Google Doc: '{converted['name']}' ({doc_id})")
     return doc_id, doc_url
 
 
