@@ -7,6 +7,7 @@ Also exposes /register so the local bot can push review data up to Railway.
 import json
 import os
 import base64
+import zlib
 from datetime import datetime
 from flask import Flask, request, jsonify
 from publish_draft import publish_approved_correction
@@ -228,16 +229,21 @@ def confirm():
 
     pending = load_pending_reviews()
 
-    # Decode findings (new format: list) or correction (legacy: dict) from URL
+    # Decode findings from URL — try compressed (zlib+b64) first, fall back to plain b64
     findings = None
     correction = None
     if encoded_data:
         try:
-            decoded = json.loads(base64.urlsafe_b64decode(encoded_data.encode()).decode())
+            raw = base64.urlsafe_b64decode(encoded_data.encode())
+            try:
+                decompressed = zlib.decompress(raw)   # new: compressed payload
+                decoded = json.loads(decompressed.decode("utf-8"))
+            except zlib.error:
+                decoded = json.loads(raw.decode("utf-8"))   # legacy: plain JSON
             if isinstance(decoded, list):
-                findings = decoded          # new multi-finding format
+                findings = decoded
             elif isinstance(decoded, dict):
-                correction = decoded        # legacy single-correction format
+                correction = decoded
         except Exception as e:
             print(f"Warning: could not decode URL data: {e}")
 
