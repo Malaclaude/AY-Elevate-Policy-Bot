@@ -109,10 +109,9 @@ def check_ada_error(policy_text: str):
 def check_working_together_version(policy_text: str):
     """
     Safeguarding policy cites Working Together 2018 — the current statutory version is 2023.
-    Detected by text scan; also included as corpus-confirmed if text is the Accessibility policy.
+    Detected by text scan. Returns None if text does not contain the outdated reference.
     """
     policy_lower = policy_text.lower()
-    # Direct detection from safeguarding policy text
     if "working together" in policy_lower and "2018" in policy_lower:
         excerpt = _excerpt(policy_text, "working together")
         return {
@@ -131,9 +130,16 @@ def check_working_together_version(policy_text: str):
             "original_excerpt": excerpt,
             "detection_method": "text_scan",
         }
+    return None
 
-    # Corpus-confirmed: Malachi confirmed this error exists in the Safeguarding policy
-    # from the manual review of Chad's corpus on 8 June 2026
+
+def check_working_together_corpus_confirmed():
+    """
+    Corpus-confirmed version of the Working Together finding.
+    Used for the demo only — Malachi confirmed this error in Chad's Safeguarding policy
+    on 8 June 2026. Remove from detect_all_gaps() once the live Safeguarding policy
+    is being scanned directly.
+    """
     return {
         "gap_id": "working_together_outdated",
         "gap_type": "outdated_reference",
@@ -220,27 +226,40 @@ def check_insurance_expiry() -> dict:
 # Main entry points
 # ─────────────────────────────────────────────
 
-def detect_all_gaps(policy_text: str) -> list[dict]:
+def detect_all_gaps(policy_text: str):
     """
     Run all checks against the policy text.
     Returns a list of findings, each anchored to an official source URL.
-    Order: severity High first, then Medium.
+
+    DEMO NOTE: Two findings below are corpus-confirmed (hardcoded) because we are
+    currently only scanning the Accessibility policy, not the full corpus.
+    Once all 7 policies are being read, replace corpus-confirmed calls with
+    text-based scans of the relevant policy files.
     """
     findings = []
 
-    # Text-based + corpus-confirmed checks
+    # ── Text-based detection ──────────────────────────────────────────────
+    # Fires only if the scanned text actually contains the wrong reference.
     ada = check_ada_error(policy_text)
     if ada:
         findings.append(ada)
 
-    wt = check_working_together_version(policy_text)
-    if wt:
-        findings.append(wt)
+    wt_text = check_working_together_version(policy_text)
+    if wt_text:
+        findings.append(wt_text)
 
-    # Always include corpus-confirmed findings
+    # ── Corpus-confirmed findings (DEMO) ──────────────────────────────────
+    # These are real errors confirmed by manual review of Chad's policy corpus
+    # on 8 June 2026. They fire unconditionally for the demo.
+    # TODO: replace with text-based scans once full corpus is being read.
+    if not wt_text:
+        # Only add corpus-confirmed version if text-scan didn't already find it
+        findings.append(check_working_together_corpus_confirmed())
+
     findings.append(check_insurance_expiry())
 
-    # Absence checks (check across what we have — if no Ofsted ref found, flag it)
+    # ── Absence checks ────────────────────────────────────────────────────
+    # Fires if a required topic is absent from the scanned text.
     ofsted = check_ofsted_camps_gap(policy_text)
     if ofsted:
         findings.append(ofsted)

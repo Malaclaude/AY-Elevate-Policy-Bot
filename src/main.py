@@ -23,16 +23,17 @@ from draft_correction import draft_all_corrections
 from send_review import send_review_email
 
 
-def run(test_mode: bool = False):
+def run(test_mode: bool = False, doc_path: str = None):
     mode_label = "TEST MODE — no Drive changes" if test_mode else "LIVE"
     print("=" * 60)
     print(f"AY POLICY BOT — Elevate Performance Academy [{mode_label}]")
     print("Full compliance audit across all monitored sources")
     print("=" * 60)
 
-    # Step 1: Read the policy corpus (currently Accessibility policy as primary)
-    print("\n[1/4] Reading policy from corpus...")
-    policy_text = read_accessibility_policy()
+    # Step 1: Read the policy (default or specified via --doc)
+    doc_label = doc_path if doc_path else "default Accessibility policy"
+    print(f"\n[1/4] Reading: {doc_label}")
+    policy_text = read_accessibility_policy(doc_path)
 
     # Step 2: Detect all gaps
     print("\n[2/4] Running compliance checks across all sources...")
@@ -72,4 +73,10 @@ def run(test_mode: bool = False):
 
 if __name__ == "__main__":
     test_mode = "--test" in sys.argv
-    run(test_mode=test_mode)
+    # --doc <path> lets you point at any policy file
+    doc_path = None
+    if "--doc" in sys.argv:
+        idx = sys.argv.index("--doc")
+        if idx + 1 < len(sys.argv):
+            doc_path = sys.argv[idx + 1]
+    run(test_mode=test_mode, doc_path=doc_path)

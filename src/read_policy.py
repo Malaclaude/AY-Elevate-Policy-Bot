@@ -30,13 +30,25 @@ def read_docx_text(filepath: str) -> str:
     return text
 
 
-def read_accessibility_policy() -> str:
-    """Read the Accessibility policy from the local file."""
-    path = os.path.normpath(LOCAL_POLICY_PATH)
+def read_accessibility_policy(doc_path: str = None) -> str:
+    """
+    Read a policy .docx file.
+    doc_path: optional path to a specific file (absolute or relative to repo root).
+    If omitted, reads the default Accessibility and Inclusiveness Policy.
+    """
+    if doc_path:
+        if os.path.isabs(doc_path):
+            path = os.path.normpath(doc_path)
+        else:
+            path = os.path.normpath(os.path.join(REPO_ROOT, doc_path))
+    else:
+        path = os.path.normpath(LOCAL_POLICY_PATH)
+
     if not os.path.exists(path):
         raise FileNotFoundError(f"Policy file not found at: {path}")
+
     text = read_docx_text(path)
-    print(f"Policy loaded from local file — {len(text)} characters")
+    print(f"Policy loaded: {os.path.basename(path)} — {len(text)} characters")
     return text
 
 

@@ -11,8 +11,8 @@ from apscheduler.triggers.cron import CronTrigger
 
 from approve_endpoint import app
 from read_policy import read_accessibility_policy
-from detect_gap import detect_gap
-from draft_correction import draft_correction
+from detect_gap import detect_all_gaps
+from draft_correction import draft_all_corrections
 from send_review import send_review_email
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -24,29 +24,29 @@ def run_monthly_check():
     logger.info("Monthly policy check started.")
 
     try:
-        # Step 1: Read policy
-        logger.info("Reading Accessibility policy...")
+        # Step 1: Read policy corpus
+        logger.info("Reading policy corpus...")
         policy_text = read_accessibility_policy()
 
-        # Step 2: Detect gaps
+        # Step 2: Detect all gaps across all monitored sources
         logger.info("Scanning for compliance gaps...")
-        gap = detect_gap(policy_text)
+        findings = detect_all_gaps(policy_text)
 
-        if not gap["found"]:
+        if not findings:
             logger.info("No gaps detected. Check complete.")
             return
 
-        logger.info(f"Gap found: {gap['description']}")
+        high = sum(1 for f in findings if f.get("severity") == "High")
+        logger.info(f"{len(findings)} finding(s) detected ({high} High). Drafting corrections...")
 
-        # Step 3: Draft correction
-        logger.info("Drafting correction via Claude API...")
-        correction = draft_correction(gap, policy_text)
+        # Step 3: Draft corrections for all findings
+        enriched = draft_all_corrections(findings, policy_text)
 
-        # Step 4: Send review email
+        # Step 4: Send consolidated review email with all findings + source links
         logger.info("Sending review email...")
-        review_id = send_review_email(correction)
+        review_id = send_review_email(enriched)
 
-        logger.info(f"Monthly check complete. Review ID: {review_id}")
+        logger.info(f"Monthly check complete. Review ID: {review_id}. {len(enriched)} finding(s) sent.")
 
     except Exception as e:
         logger.error(f"Monthly check failed: {e}")
