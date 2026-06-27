@@ -25,7 +25,7 @@ SOURCES = {
         "url": "https://www.legislation.gov.uk/ukpga/2004/31/contents",
     },
     "hse": {
-        "name": "HSE — Health and Safety at Work",
+        "name": "HSE, Health and Safety at Work",
         "url": "https://www.hse.gov.uk/legislation/hswa.htm",
     },
     "ico_gdpr": {
@@ -37,7 +37,7 @@ SOURCES = {
         "url": "https://ico.org.uk/for-organisations/childrens-code/",
     },
     "dbs": {
-        "name": "DBS — Disclosure and Barring Service",
+        "name": "DBS, Disclosure and Barring Service",
         "url": "https://www.gov.uk/government/organisations/disclosure-and-barring-service",
     },
     "nspcc_cpsu": {
@@ -53,7 +53,7 @@ SOURCES = {
         "url": "https://www.acas.org.uk/acas-code-of-practice-on-disciplinary-and-grievance-procedures",
     },
     "simply_business": {
-        "name": "Simply Business — Certificate of Employers' Liability Insurance",
+        "name": "Simply Business, Certificate of Employers' Liability Insurance",
         "url": "https://www.simplybusiness.co.uk/",
     },
 }
@@ -97,7 +97,7 @@ def check_ada_error(policy_text: str):
                 "search_text": "Americans with Disabilities Act (ADA)",
                 "correct_reference": "Equality Act 2010",
                 "description": (
-                    "Policy cites the Americans with Disabilities Act — a US federal law with no legal standing in England. "
+                    "Policy cites the Americans with Disabilities Act, a US federal law with no legal standing in England. "
                     "Elevate operates under the Equality Act 2010, which covers disability, age, race, sex, and other protected characteristics. "
                     "This would be flagged immediately by any Ofsted inspector, school safeguarding lead, or local authority."
                 ),
@@ -126,7 +126,7 @@ def check_working_together_version(policy_text: str):
             "description": (
                 "Policy references Working Together to Safeguard Children 2018. "
                 "The 2023 edition is the current statutory safeguarding framework and supersedes all previous versions. "
-                "Schools, LAs, and Ofsted check this citation — an outdated version undermines safeguarding credibility and could trigger a formal concern."
+                "Schools, LAs, and Ofsted check this citation, an outdated version undermines safeguarding credibility and could trigger a formal concern."
             ),
             "original_excerpt": excerpt,
             "detection_method": "text_scan",
@@ -152,7 +152,7 @@ def check_working_together_corpus_confirmed():
         "description": (
             "Policy references Working Together to Safeguard Children 2018. "
             "The 2023 edition is the current statutory safeguarding framework and supersedes all previous versions. "
-            "Schools, LAs, and Ofsted check this citation — an outdated version undermines safeguarding credibility and could trigger a formal concern."
+            "Schools, LAs, and Ofsted check this citation, an outdated version undermines safeguarding credibility and could trigger a formal concern."
         ),
         "original_excerpt": (
             "This policy has been developed in accordance with the statutory guidance set out in "

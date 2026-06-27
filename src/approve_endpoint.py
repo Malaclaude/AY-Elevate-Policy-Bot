@@ -30,6 +30,30 @@ def save_pending_reviews(pending: dict):
         json.dump(pending, f, indent=2)
 
 
+def _decode_payload(encoded_data: str):
+    """Decode the URL payload into (findings_list, correction_dict)."""
+    if not encoded_data:
+        return None, None
+    try:
+        raw = base64.urlsafe_b64decode(encoded_data.encode())
+        try:
+            decoded = json.loads(zlib.decompress(raw).decode("utf-8"))
+        except zlib.error:
+            decoded = json.loads(raw.decode("utf-8"))
+        if isinstance(decoded, list):
+            return decoded, None
+        if isinstance(decoded, dict):
+            return None, decoded
+    except Exception as e:
+        print(f"Warning: could not decode URL data: {e}")
+    return None, None
+
+
+def _gid(finding: dict) -> str:
+    """Stable id for one finding, used to track per-policy approve / skip state."""
+    return finding.get("gap_id") or f"{finding.get('policy_name','')}|{finding.get('gap_type','')}"
+
+
 def page(title, icon_html, headline, body_html, ref, timestamp):
     """Render a branded, mobile-optimised confirmation page."""
     return f"""<!DOCTYPE html>
@@ -41,17 +65,17 @@ def page(title, icon_html, headline, body_html, ref, timestamp):
   <title>{title}</title>
   <style>
     * {{ box-sizing: border-box; }}
-    body {{ margin:0; padding:0; background:#f3f0fa; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; }}
+    body {{ margin:0; padding:0; background:#f4f4f5; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; }}
     .wrapper {{ min-height:100vh; padding:40px 16px; display:flex; align-items:center; justify-content:center; }}
-    .card {{ background:#ffffff; border-radius:26px; overflow:hidden; width:100%; max-width:520px; box-shadow:0 10px 40px rgba(76,29,149,0.12); }}
-    .card-top {{ background:#ece7fb; background:linear-gradient(160deg,#e7defb 0%,#f3e3f4 60%,#ffffff 100%); height:90px; }}
+    .card {{ background:#ffffff; border-radius:22px; overflow:hidden; width:100%; max-width:520px; border:1px solid #e6e6e6; }}
+    .card-top {{ background:#f0f0f2; background:linear-gradient(160deg,#eeeef1 0%,#f6f6f8 60%,#ffffff 100%); height:90px; }}
     .card-body {{ padding:0 40px 44px; text-align:center; margin-top:-44px; }}
-    .card-footer {{ background:#faf8ff; border-top:1px solid #eee9fb; padding:20px 40px; text-align:center; }}
-    .brand {{ margin:0 0 22px; font-size:12px; font-weight:800; letter-spacing:3.5px; text-transform:uppercase; color:#7c3aed; }}
-    .headline {{ margin:22px 0 16px; font-size:25px; font-weight:800; color:#1e1b2e; letter-spacing:-0.4px; line-height:1.2; }}
-    .footer-text {{ margin:0; font-size:12px; color:#a78bb5; line-height:1.8; }}
-    .footer-text a {{ color:#7c3aed; text-decoration:none; font-weight:700; }}
-    .doc-btn {{ display:inline-block; background:#7c3aed; color:#ffffff; font-size:14px; font-weight:700; padding:15px 32px; border-radius:100px; text-decoration:none; margin-top:4px; box-shadow:0 8px 22px rgba(124,58,237,0.30); }}
+    .card-footer {{ background:#fafafa; border-top:1px solid #ececec; padding:20px 40px; text-align:center; }}
+    .brand {{ margin:0 0 22px; font-size:12px; font-weight:800; letter-spacing:3.5px; text-transform:uppercase; color:#1a1a1a; }}
+    .headline {{ margin:22px 0 16px; font-size:25px; font-weight:800; color:#1a1a1a; letter-spacing:-0.4px; line-height:1.2; }}
+    .footer-text {{ margin:0; font-size:12px; color:#9a9a9a; line-height:1.8; }}
+    .footer-text a {{ color:#1a1a1a; text-decoration:none; font-weight:700; }}
+    .doc-btn {{ display:inline-block; background:#1a1a1a; color:#ffffff; font-size:14px; font-weight:700; padding:15px 32px; border-radius:9px; text-decoration:none; margin-top:4px; }}
     @media (max-width: 480px) {{
       .card-body {{ padding:0 24px 34px; }}
       .card-footer {{ padding:16px 24px; }}
@@ -135,18 +159,32 @@ def approve():
 
     if action == "reject":
         pending = load_pending_reviews()
-        if review_id not in pending:
-            pending[review_id] = {"status": "pending"}
-        pending[review_id]["status"] = "rejected"
-        pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
+        rec = pending.setdefault(review_id, {"status": "pending"})
+        skipped_findings, _corr = _decode_payload(encoded_data)
+        skipped_ids = [_gid(f) for f in skipped_findings] if skipped_findings else []
+        if skipped_ids:
+            sk = set(rec.get("skipped_findings", []))
+            sk.update(skipped_ids)
+            rec["skipped_findings"] = sorted(sk)
+            one = len(skipped_ids) == 1
+            headline = "Correction skipped" if one else "Corrections declined"
+            body = ("Logged. No change has been made to this policy. The other "
+                    "corrections are still waiting for your decision."
+                    if one else
+                    "Logged. No changes have been made to any policy documents.")
+        else:
+            rec["status"] = "rejected"
+            headline = "Corrections declined"
+            body = "Logged. No changes have been made to any policy documents."
+        rec["actioned_at"] = datetime.utcnow().isoformat()
         save_pending_reviews(pending)
         return page(
-            title="Correction declined",
-            icon_html="""<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;background:#fef2f2;border-radius:50%;border:2px solid #fecaca;">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/></svg>
+            title=headline,
+            icon_html="""<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;background:#f3f3f3;border-radius:50%;border:1px solid #e0e0e0;">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="#6a6a6a" stroke-width="2.5" stroke-linecap="round"/></svg>
             </div>""",
-            headline="Correction declined",
-            body_html="<p style='margin:0;font-size:15px;color:#475569;line-height:1.7;'>Logged. No changes have been made to any policy documents.</p>",
+            headline=headline,
+            body_html=f"<p style='margin:0;font-size:15px;color:#4a4a4a;line-height:1.7;'>{body}</p>",
             ref=review_id,
             timestamp=timestamp,
         ), 200
@@ -155,9 +193,9 @@ def approve():
     test_param = "&test=1" if test_mode else ""
     confirm_url = f"/confirm?id={review_id}&d={encoded_data}{test_param}"
     test_banner = (
-        '<p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#92400e;'
-        'background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;">'
-        'TEST MODE — no changes will be written to Drive.</p>'
+        '<p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#555;'
+        'background:#f3f3f3;border:1px solid #dcdcdc;border-radius:8px;padding:8px 14px;">'
+        'TEST MODE. No changes will be written to Drive.</p>'
     ) if test_mode else ""
 
     return f"""<!DOCTYPE html>
@@ -171,13 +209,13 @@ def approve():
     *{{box-sizing:border-box;}}
     body{{margin:0;padding:0;background:#f3f0fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;}}
     .wrap{{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;}}
-    .card{{background:#fff;border-radius:26px;box-shadow:0 10px 40px rgba(76,29,149,0.12);padding:52px 40px;text-align:center;max-width:440px;width:100%;}}
-    .brand{{margin:0 0 26px;font-size:12px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#7c3aed;}}
-    .spinner{{width:50px;height:50px;border:4px solid #ede9f5;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 26px;}}
+    .card{{background:#fff;border-radius:22px;border:1px solid #e6e6e6;padding:52px 40px;text-align:center;max-width:440px;width:100%;}}
+    .brand{{margin:0 0 26px;font-size:12px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#1a1a1a;}}
+    .spinner{{width:50px;height:50px;border:4px solid #ededed;border-top-color:#1a1a1a;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 26px;}}
     @keyframes spin{{to{{transform:rotate(360deg)}}}}
-    h2{{margin:0 0 8px;font-size:21px;font-weight:800;color:#1e1b2e;letter-spacing:-0.3px;}}
-    p{{margin:0;font-size:14px;color:#8b86a0;line-height:1.6;}}
-    .ref{{margin-top:26px;font-size:11px;color:#c4bbd9;}}
+    h2{{margin:0 0 8px;font-size:21px;font-weight:800;color:#1a1a1a;letter-spacing:-0.3px;}}
+    p{{margin:0;font-size:14px;color:#7a7a7a;line-height:1.6;}}
+    .ref{{margin-top:26px;font-size:11px;color:#bdbdbd;}}
     @media(max-width:480px){{.card{{padding:40px 24px;}}}}
   </style>
 </head>
@@ -192,22 +230,15 @@ def approve():
       <p class="ref">Ref: {review_id}</p>
     </div>
   </div>
-  <form id="f" method="POST" action="{confirm_url}"></form>
+  <form id="f" method="POST" action="{confirm_url}">
+    <noscript>
+      <button type="submit" style="background:#1a1a1a;color:#fff;border:none;padding:15px 34px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;">Approve</button>
+    </noscript>
+  </form>
   <script>
-    // Auto-submit immediately — email pre-fetchers don't run JS so this is safe.
-    // Fallback: if JS is somehow blocked, show a manual button after 3 seconds.
+    // Auto-submit immediately. Email pre-fetchers do not run JS, so this is safe.
+    // If JS is disabled, the noscript button above is the fallback (no delayed prompt).
     document.getElementById('f').submit();
-    setTimeout(function(){{
-      var d = document.querySelector('.spinner');
-      if(d) d.style.display='none';
-      document.querySelector('h2').textContent = 'Tap to approve';
-      document.querySelector('p').innerHTML =
-        '<button onclick="document.getElementById(\\'f\\').submit()" '
-        'style="background:#7c3aed;color:#fff;border:none;padding:15px 32px;'
-        'border-radius:100px;font-size:14px;font-weight:700;cursor:pointer;margin-top:12px;'
-        'box-shadow:0 8px 22px rgba(124,58,237,0.30);">'
-        'Confirm approval</button>';
-    }}, 3000);
   </script>
 </body>
 </html>""", 200
@@ -226,116 +257,107 @@ def confirm():
 
     pending = load_pending_reviews()
 
-    # Decode findings from URL — try compressed (zlib+b64) first, fall back to plain b64
-    findings = None
-    correction = None
-    if encoded_data:
-        try:
-            raw = base64.urlsafe_b64decode(encoded_data.encode())
-            try:
-                decompressed = zlib.decompress(raw)   # new: compressed payload
-                decoded = json.loads(decompressed.decode("utf-8"))
-            except zlib.error:
-                decoded = json.loads(raw.decode("utf-8"))   # legacy: plain JSON
-            if isinstance(decoded, list):
-                findings = decoded
-            elif isinstance(decoded, dict):
-                correction = decoded
-        except Exception as e:
-            print(f"Warning: could not decode URL data: {e}")
+    findings, correction = _decode_payload(encoded_data)
 
     # Fall back to stored data on Railway
     if not findings and not correction:
         review = pending.get(review_id, {})
         findings = review.get("findings")
         correction = review.get("correction")
+    if correction and not findings:
+        findings = [correction]
 
-    if not findings and not correction:
+    if not findings:
         return page(
             title="Not found",
-            icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f1f5f9; border-radius:50%; border:2px solid #e2e8f0;">
+            icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f3f3f3; border-radius:50%; border:1px solid #e0e0e0;">
               <span style="font-size:30px;">&#128269;</span>
             </div>""",
             headline="Review not found",
-            body_html="<p style='margin:0; font-size:15px; color:#64748b; line-height:1.7;'>This review link has expired or could not be found.</p>",
+            body_html="<p style='margin:0; font-size:15px; color:#4a4a4a; line-height:1.7;'>This review link has expired or could not be found.</p>",
             ref=review_id,
             timestamp=timestamp,
         ), 404
 
-    # Check if already approved
-    existing = pending.get(review_id, {})
-    if existing.get("status") == "approved":
-        doc_url = existing.get("doc_url", "")
-        doc_link = f'<p style="margin:16px 0 0;"><a href="{doc_url}" style="color:#3b82f6; font-size:14px; text-decoration:none;">View published document &rarr;</a></p>' if doc_url else ""
+    SUCCESS_ICON = """<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#ecfdf3; border-radius:50%; border:1px solid #bbf7d0;">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>"""
+
+    rec = pending.setdefault(review_id, {"status": "pending"})
+    approved_ids = set(rec.get("approved_findings", []))
+
+    # Only act on the finding(s) this click carries that are not already done
+    to_apply = [f for f in findings if _gid(f) not in approved_ids]
+    if not to_apply:
+        doc_url = rec.get("doc_url", "")
+        doc_link = f'<p style="margin:18px 0 0;"><a href="{doc_url}" class="doc-btn">View document</a></p>' if doc_url else ""
         return page(
             title="Already approved",
-            icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f0fdf4; border-radius:50%; border:2px solid #bbf7d0;">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>""",
-            headline="Corrections already published",
-            body_html=f"<p style='margin:0; font-size:15px; color:#64748b; line-height:1.7;'>These corrections have already been approved and published. Nothing more to do.</p>{doc_link}",
+            icon_html=SUCCESS_ICON,
+            headline="Already approved",
+            body_html=f"<p style='margin:0; font-size:15px; color:#4a4a4a; line-height:1.7;'>This correction has already been approved and applied. Nothing more to do here.</p>{doc_link}",
             ref=review_id,
             timestamp=timestamp,
         ), 200
 
-    # Execute approval — skip Drive publish in test mode
-    doc_url = None
+    # Execute. Skip Drive publish in test mode.
+    doc_url = rec.get("doc_url")
     if test_mode:
         print(f"TEST MODE: skipping Drive publish for {review_id}")
     else:
         try:
-            if findings:
-                doc_url = publish_approved_correction(findings, review_id)
-            else:
-                doc_url = publish_approved_correction(correction, review_id)
+            result_url = publish_approved_correction(to_apply, review_id)
+            if result_url:
+                doc_url = result_url
         except Exception as e:
             import traceback
-            error_detail = traceback.format_exc()
-            print(f"Drive publish FAILED for {review_id}: {e}\n{error_detail}")
+            print(f"Drive publish FAILED for {review_id}: {e}\n{traceback.format_exc()}")
             return page(
                 title="Drive update failed",
-                icon_html="""<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;background:#fef2f2;border-radius:50%;border:2px solid #fecaca;">
+                icon_html="""<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;background:#fef2f2;border-radius:50%;border:1px solid #fecaca;">
                   <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>
                 </div>""",
                 headline="Drive update failed",
-                body_html=f"<p style='margin:0;font-size:15px;color:#475569;line-height:1.7;'>The approval was logged but the policy document could not be updated. Check Railway logs for the full error.</p><pre style='margin:16px 0 0;font-size:11px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;overflow:auto;'>{str(e)}</pre>",
+                body_html=f"<p style='margin:0;font-size:15px;color:#4a4a4a;line-height:1.7;'>The approval was logged but the policy document could not be updated. Check the Railway logs for the full error.</p><pre style='margin:16px 0 0;font-size:11px;color:#8a8a8a;background:#fafafa;border:1px solid #ececec;border-radius:8px;padding:12px;overflow:auto;'>{str(e)}</pre>",
                 ref=review_id,
                 timestamp=timestamp,
             ), 500
 
-    stored = {"status": "pending"}
-    if findings:
-        stored["findings"] = findings
-    else:
-        stored["correction"] = correction
-    if review_id not in pending:
-        pending[review_id] = stored
-    pending[review_id]["status"] = "approved"
-    pending[review_id]["actioned_at"] = datetime.utcnow().isoformat()
-    pending[review_id]["test_mode"] = test_mode
+    # Record per-finding approval state
+    approved_ids.update(_gid(f) for f in to_apply)
+    rec["approved_findings"] = sorted(approved_ids)
+    rec["findings"] = rec.get("findings") or findings
+    rec["actioned_at"] = datetime.utcnow().isoformat()
+    rec["test_mode"] = test_mode
     if doc_url:
-        pending[review_id]["doc_url"] = doc_url
+        rec["doc_url"] = doc_url
+    # Mark the whole review done once every finding is either approved or skipped
+    all_ids = {_gid(f) for f in rec.get("findings", findings)}
+    handled = approved_ids | set(rec.get("skipped_findings", []))
+    if all_ids and all_ids.issubset(handled):
+        rec["status"] = "approved"
     save_pending_reviews(pending)
 
+    n = len(to_apply)
+    names = [f.get("policy_name", "this policy") for f in to_apply]
     if test_mode:
-        body_text = "Test run complete. All findings were detected and corrections drafted correctly. No changes have been made to any policy documents."
+        headline = "Test complete"
+        body_text = (f"Test run complete. {n} correction{'s' if n != 1 else ''} validated. "
+                     "No changes have been made to any policy documents.")
         doc_button = ""
     else:
-        body_text = f"The compliance correction report for Elevate Performance Academy has been published to Google Drive."
-        doc_button = f"""<a href="{doc_url}" style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none;">
-      View published document &rarr;
-    </a>""" if doc_url else ""
+        headline = "Correction approved" if n == 1 else "Corrections approved"
+        if n == 1:
+            body_text = f"The correction to {names[0]} has been applied in Google Drive."
+        else:
+            body_text = f"{n} corrections have been applied to Elevate's policy documents in Google Drive."
+        doc_button = f'<a href="{doc_url}" class="doc-btn">View document</a>' if doc_url else ""
 
-    headline = "Test complete" if test_mode else "Corrections approved"
     return page(
         title=headline,
-        icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f0fdf4; border-radius:50%; border:2px solid #bbf7d0;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>""",
+        icon_html=SUCCESS_ICON,
         headline=headline,
-        body_html=f"""<p style="margin:0 0 24px; font-size:15px; color:#475569; line-height:1.7;">
-          {body_text}
-        </p>{doc_button}""",
+        body_html=f'<p style="margin:0 0 24px; font-size:15px; color:#4a4a4a; line-height:1.7;">{body_text}</p>{doc_button}',
         ref=review_id,
         timestamp=timestamp,
     ), 200

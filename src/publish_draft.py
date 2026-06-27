@@ -14,9 +14,8 @@ No new documents are ever created unless every policy doc lookup fails (fallback
 import io
 import os
 import re
+import zipfile
 from datetime import datetime
-
-from docx import Document
 
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -143,46 +142,49 @@ def _download_bytes(drive_service, file_id: str) -> bytes:
     return buf.getvalue()
 
 
+def _xml_escape(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# Only the text-bearing parts of the package are touched. Everything else
+# (logos, images, headers' media, styles, fonts, relationships) is copied
+# byte-for-byte so embedded graphics are never disturbed.
+_EDITABLE_PART = re.compile(r"^word/(document|header\d*|footer\d*)\.xml$")
+
+
 def _replace_in_docx_bytes(docx_bytes: bytes, old_text: str, new_text: str) -> tuple:
     """
-    Replace text in a .docx using python-docx. Returns (updated_bytes, count).
+    Surgical .docx text replacement that preserves the rest of the package.
 
-    Handles text split across multiple Word runs (common with spell-check markers,
-    autocorrect, or mixed formatting). For each paragraph containing the target
-    phrase, the text is consolidated into the first run and corrected — preserving
-    the paragraph's other formatting while reliably rewriting the target phrase.
+    Rewrites ONLY the visible text inside the body/header/footer XML and copies
+    every other zip entry unchanged. A full python-docx re-save can drop or
+    reposition embedded logos and shapes (and roughly halves the file); this
+    method cannot, because it never re-serialises images or relationships.
+
+    Returns (updated_bytes, count).
+
+    Limitation: matches text that is contiguous within a run. Word normally
+    keeps a pasted phrase in one run; if a phrase is split mid-word across runs
+    it is reported as 0 and left untouched (safer than corrupting layout).
     """
-    doc = Document(io.BytesIO(docx_bytes))
+    pattern = re.compile(re.escape(_xml_escape(old_text)), re.IGNORECASE)
+    replacement = _xml_escape(new_text)
     count = 0
-    pattern = re.compile(re.escape(old_text), re.IGNORECASE)
 
-    def _fix_para(para):
-        nonlocal count
-        full = para.text
-        if not pattern.search(full):
-            return
-        corrected = pattern.sub(new_text, full)
-        runs = para.runs
-        if not runs:
-            return
-        # Write corrected text into first run, blank the rest
-        runs[0].text = corrected
-        for run in runs[1:]:
-            run.text = ""
-        count += 1
-
-    for para in doc.paragraphs:
-        _fix_para(para)
-
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    _fix_para(para)
-
-    output = io.BytesIO()
-    doc.save(output)
-    return output.getvalue(), count
+    src = zipfile.ZipFile(io.BytesIO(docx_bytes), "r")
+    out_buf = io.BytesIO()
+    with zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if _EDITABLE_PART.search(item.filename):
+                text = data.decode("utf-8")
+                text, n = pattern.subn(replacement, text)
+                count += n
+                data = text.encode("utf-8")
+            # preserve original compression type per entry
+            dst.writestr(item, data)
+    src.close()
+    return out_buf.getvalue(), count
 
 
 def _upload_bytes(drive_service, file_id: str, file_bytes: bytes):
@@ -304,9 +306,9 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
 
             if count > 0:
                 add_drive_comment(drive_service, file_id, (
-                    f"[AY Policy Bot — {date_str}] Automated correction applied (Ref: {review_id})\n"
+                    f"[AY Policy Bot, {date_str}] Automated correction applied (Ref: {review_id})\n"
                     f"Changed: \"{search_phrase}\" → \"{replacement}\"\n"
-                    f"Source: {source_name} — {source_url}"
+                    f"Source: {source_name}, {source_url}"
                 ))
                 updated_docs[policy_name] = doc_url
             else:
@@ -315,9 +317,9 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
         elif gap_type in ("missing_coverage", "expired_document"):
             action = finding.get("recommended_action") or finding.get("description", "")
             add_drive_comment(drive_service, file_id, (
-                f"[AY Policy Bot — {date_str}] ACTION REQUIRED (Ref: {review_id})\n"
+                f"[AY Policy Bot, {date_str}] ACTION REQUIRED (Ref: {review_id})\n"
                 f"{action}\n"
-                f"Source: {source_name} — {source_url}"
+                f"Source: {source_name}, {source_url}"
             ))
             updated_docs[policy_name] = doc_url
 

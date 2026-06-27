@@ -1,28 +1,94 @@
 {
-  "2a2cfa93": {
-    "correction": {
-      "original_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. Community Engagement: We actively engage with our community, including",
-      "corrected_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Equality Act 2010 and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. As an organisation delivering programmes within schools, we also recognise our responsibilities under the Public Sector Equality Duty (Section 149 of the Equality Act 2010), and are committed to advancing equality of opportunity and fostering good relations across all protected characteristics. Community Engagement: We actively engage with our community, including",
-      "wrong_reference": "Americans with Disabilities Act",
-      "correct_reference": "Equality Act 2010",
-      "severity": "High",
-      "description": "Policy references 'Americans with Disabilities Act' \u2014 a US law. Elevate operates in England. The correct legislation is the Equality Act 2010. This would be flagged immediately by any school or Ofsted inspector.",
-      "model_used": "claude-sonnet-4-6"
-    },
-    "created_at": "2026-06-13T11:50:37.470334",
-    "status": "pending"
+  "pptest01": {
+    "status": "approved",
+    "approved_findings": [
+      "ada_jurisdiction",
+      "working_together_outdated"
+    ],
+    "findings": [
+      {
+        "gap_id": "ada_jurisdiction",
+        "gap_type": "wrong_reference",
+        "policy_name": "Accessibility and Inclusiveness Policy",
+        "severity": "High",
+        "source": {
+          "name": "Equality Act 2010",
+          "url": "https://www.gov.uk/guidance/equality-act-2010-guidance"
+        },
+        "wrong_reference": "Americans with Disabilities Act (ADA)",
+        "search_text": "Americans with Disabilities Act (ADA)",
+        "correct_reference": "Equality Act 2010",
+        "description": "Policy cites the Americans with Disabilities Act, a US federal law with no legal standing in England. Elevate operates under the Equality Act 2010, which covers disability, age, race, sex, and other protected characteristics. This would be flagged immediately by any Ofsted inspector, school safeguarding lead, or local authority.",
+        "original_excerpt": "We adhere to relevant accessibility standards such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG). Our safeguarding policy follows Working Together to Safeguard Children 2018.",
+        "detection_method": "text_scan"
+      }
+    ],
+    "actioned_at": "2026-06-27T13:45:02.218825",
+    "test_mode": true
   },
-  "111d535f": {
-    "correction": {
-      "original_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. Community Engagement: We actively engage with our community, including",
-      "corrected_excerpt": "ring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Equality Act 2010 and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. As an organisation delivering programmes within schools, we also recognise our responsibilities under the Public Sector Equality Duty (Section 149 of the Equality Act 2010), and are committed to advancing equality of opportunity and fostering good relations across all protected characteristics. Community Engagement: We actively engage with our community, including",
-      "wrong_reference": "Americans with Disabilities Act",
-      "correct_reference": "Equality Act 2010",
-      "severity": "High",
-      "description": "Policy references 'Americans with Disabilities Act' \u2014 a US law. Elevate operates in England. The correct legislation is the Equality Act 2010. This would be flagged immediately by any school or Ofsted inspector.",
-      "model_used": "claude-sonnet-4-6"
-    },
-    "created_at": "2026-06-13T12:02:54.844636",
+  "5d6e35c6": {
+    "findings": [
+      {
+        "gap_id": "ada_jurisdiction",
+        "gap_type": "wrong_reference",
+        "policy_name": "Accessibility and Inclusiveness Policy",
+        "severity": "High",
+        "source": {
+          "name": "Equality Act 2010",
+          "url": "https://www.gov.uk/guidance/equality-act-2010-guidance"
+        },
+        "wrong_reference": "Americans with Disabilities Act (ADA)",
+        "search_text": "Americans with Disabilities Act (ADA)",
+        "correct_reference": "Equality Act 2010",
+        "description": "Policy cites the Americans with Disabilities Act, a US federal law with no legal standing in England. Elevate operates under the Equality Act 2010, which covers disability, age, race, sex, and other protected characteristics. This would be flagged immediately by any Ofsted inspector, school safeguarding lead, or local authority.",
+        "original_excerpt": "ble for overseeing accessibility initiatives, ensuring compliance with regulations, and promoting best practices across all aspects of our operations. Accessibility Standards: We adhere to relevant accessibility standards and guidelines, such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG), in developing and maintaining our physical spaces and digital platforms. Community Engagement: We actively engage with our community, including individuals with disabilities, to understand their",
+        "detection_method": "text_scan"
+      },
+      {
+        "gap_id": "working_together_outdated",
+        "gap_type": "outdated_reference",
+        "policy_name": "Safeguarding Policy",
+        "severity": "High",
+        "source": {
+          "name": "Working Together to Safeguard Children 2023",
+          "url": "https://www.gov.uk/government/publications/working-together-to-safeguard-children--2"
+        },
+        "wrong_reference": "Working Together to Safeguard Children 2018",
+        "correct_reference": "Working Together to Safeguard Children 2023",
+        "description": "Policy references Working Together to Safeguard Children 2018. The 2023 edition is the current statutory safeguarding framework and supersedes all previous versions. Schools, LAs, and Ofsted check this citation, an outdated version undermines safeguarding credibility and could trigger a formal concern.",
+        "original_excerpt": "This policy has been developed in accordance with the statutory guidance set out in Working Together to Safeguard Children 2018 (HM Government) and reflects current legislation and guidance relevant to the safeguarding and protection of children.",
+        "detection_method": "corpus_confirmed"
+      },
+      {
+        "gap_id": "insurance_expired",
+        "gap_type": "expired_document",
+        "policy_name": "Simply Business Insurance Certificate (CHBS4860808XB)",
+        "severity": "High",
+        "source": {
+          "name": "Simply Business, Certificate of Employers' Liability Insurance",
+          "url": "https://www.simplybusiness.co.uk/"
+        },
+        "description": "The insurance certificate on file (Simply Business, policy ref CHBS4860808XB) expired on 18 February 2026. Cover ran 19 February 2025 to 18 February 2026. Operating in schools without valid employers' liability insurance is a legal breach and would void any incident claim. Renewed certificate from Chad is outstanding.",
+        "original_excerpt": null,
+        "recommended_action": "Obtain the renewed certificate from Chad immediately and replace the expired document in the shared policy drive. Confirm renewal dates and ensure the certificate is shared with any schools requiring proof of cover.",
+        "detection_method": "corpus_confirmed"
+      },
+      {
+        "gap_id": "ofsted_camps_gap",
+        "gap_type": "missing_coverage",
+        "policy_name": "Full Policy Set (all policies)",
+        "severity": "Medium",
+        "source": {
+          "name": "Ofsted Childcare Registration Exemptions",
+          "url": "https://www.gov.uk/guidance/registration-exemptions"
+        },
+        "description": "No policy in the set references Ofsted childcare registration requirements or exemptions for sports camps and holiday clubs. If Elevate runs camps for children under 8 for more than 2 hours/day, Ofsted registration is legally required. If exempt (e.g. activity-based exemption), the exemption must be documented. Currently neither is addressed.",
+        "original_excerpt": null,
+        "recommended_action": "Add a section to the Health & Safety or Safeguarding policy confirming Elevate's Ofsted registration status for camps and holiday clubs, or explicitly documenting the applicable exemption under the Childcare (Exemptions from Registration) Order 2008.",
+        "detection_method": "absence_check"
+      }
+    ],
+    "created_at": "2026-06-27T13:45:25.029116",
     "status": "pending"
   }
 }
