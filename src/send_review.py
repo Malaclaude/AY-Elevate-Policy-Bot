@@ -103,205 +103,220 @@ def encode_findings(findings: list) -> str:
     return base64.urlsafe_b64encode(compressed).decode()
 
 
+def _left_border_color(severity: str, gap_type: str) -> str:
+    if gap_type in ("missing_coverage", "expired_document"):
+        return "#f59e0b"  # amber for action items
+    return "#ef4444" if severity == "High" else "#f59e0b"
+
+
 def _severity_badge(severity: str) -> str:
     if severity == "High":
         return (
-            '<span style="display:inline-block; background:#fef2f2; color:#b91c1c; '
-            'font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; '
-            'padding:4px 10px; border-radius:100px; border:1px solid #fecaca;">High</span>'
+            '<span style="display:inline-block;background:#fef2f2;color:#b91c1c;'
+            'font-size:10px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;'
+            'padding:3px 10px;border-radius:100px;border:1px solid #fecaca;">High</span>'
         )
     return (
-        '<span style="display:inline-block; background:#fffbeb; color:#92400e; '
-        'font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; '
-        'padding:4px 10px; border-radius:100px; border:1px solid #fde68a;">Medium</span>'
+        '<span style="display:inline-block;background:#fffbeb;color:#92400e;'
+        'font-size:10px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;'
+        'padding:3px 10px;border-radius:100px;border:1px solid #fde68a;">Medium</span>'
     )
 
 
 def _finding_card(finding: dict, index: int) -> str:
-    """Render one finding as an HTML card. Source link always present."""
-    severity_badge = _severity_badge(finding["severity"])
+    """Render one finding as a premium feature-card with left accent border."""
+    severity = finding["severity"]
+    severity_badge = _severity_badge(severity)
     source_name = finding["source"]["name"]
     source_url = finding["source"]["url"]
     policy_name = finding["policy_name"]
     description = finding["description"]
-
     gap_type = finding.get("gap_type", "")
-    original = finding.get("original_excerpt") or ""
-    corrected = finding.get("corrected_excerpt") or ""
+    border_color = _left_border_color(severity, gap_type)
 
-    # Before/after section for text-correction findings
-    before_after = ""
-    if original and corrected and gap_type in ("wrong_reference", "outdated_reference"):
-        before_after = f"""
-                <p style="margin:16px 0 6px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8;">Current text</p>
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:14px;">
-                  <tr>
-                    <td style="background:#fff8f8; border:1px solid #fee2e2; border-left:4px solid #ef4444; border-radius:0 8px 8px 0; padding:14px 18px;">
-                      <p style="margin:0; font-size:13px; color:#7f1d1d; line-height:1.75; font-style:italic;">{original}</p>
-                    </td>
-                  </tr>
-                </table>
-                <p style="margin:0 0 6px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8;">Suggested correction</p>
-                <table cellpadding="0" cellspacing="0" border="0" width="100%">
-                  <tr>
-                    <td style="background:#f0fdf4; border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:0 8px 8px 0; padding:14px 18px;">
-                      <p style="margin:0; font-size:13px; color:#14532d; line-height:1.75;">{corrected}</p>
-                    </td>
-                  </tr>
-                </table>"""
+    # Type label for the card header
+    type_labels = {
+        "wrong_reference": "Wrong reference",
+        "outdated_reference": "Outdated reference",
+        "missing_coverage": "Missing coverage",
+        "expired_document": "Expired document",
+    }
+    type_label = type_labels.get(gap_type, gap_type.replace("_", " ").title())
 
-    elif corrected and gap_type in ("missing_coverage", "expired_document"):
-        before_after = f"""
-                <p style="margin:16px 0 6px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8;">Recommended action</p>
-                <table cellpadding="0" cellspacing="0" border="0" width="100%">
-                  <tr>
-                    <td style="background:#f0f9ff; border:1px solid #bae6fd; border-left:4px solid #0284c7; border-radius:0 8px 8px 0; padding:14px 18px;">
-                      <p style="margin:0; font-size:13px; color:#0c4a6e; line-height:1.75;">{corrected}</p>
-                    </td>
-                  </tr>
-                </table>"""
+    # Action / correction block
+    action_block = ""
+    if gap_type in ("wrong_reference", "outdated_reference"):
+        wrong = finding.get("wrong_reference", "")
+        correct = finding.get("correct_reference", "")
+        if wrong and correct:
+            action_block = f"""
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:16px;">
+                <tr>
+                  <td width="50%" style="padding-right:8px;" valign="top">
+                    <p style="margin:0 0 5px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#94a3b8;">Remove</p>
+                    <p style="margin:0;font-size:13px;color:#7f1d1d;background:#fff8f8;border:1px solid #fee2e2;border-radius:8px;padding:10px 14px;line-height:1.6;">{wrong}</p>
+                  </td>
+                  <td width="50%" style="padding-left:8px;" valign="top">
+                    <p style="margin:0 0 5px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#94a3b8;">Replace with</p>
+                    <p style="margin:0;font-size:13px;color:#14532d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;line-height:1.6;">{correct}</p>
+                  </td>
+                </tr>
+              </table>"""
+    elif gap_type in ("missing_coverage", "expired_document"):
+        action = finding.get("recommended_action", "")
+        if action:
+            action_block = f"""
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:16px;">
+                <tr>
+                  <td style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;">
+                    <p style="margin:0 0 3px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#92400e;">Action required</p>
+                    <p style="margin:0;font-size:13px;color:#78350f;line-height:1.65;">{action}</p>
+                  </td>
+                </tr>
+              </table>"""
 
     return f"""
-          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:16px; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:14px;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
             <tr>
-              <td style="padding:20px 24px;">
-                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+              <td width="4" style="background:{border_color};font-size:0;">&nbsp;</td>
+              <td style="padding:20px 22px 22px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:8px;">
                   <tr>
                     <td valign="middle">
-                      <p style="margin:0; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#94a3b8;">Finding {index + 1} &nbsp;&middot;&nbsp; {policy_name}</p>
+                      <p style="margin:0;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#94a3b8;">{type_label} &nbsp;&middot;&nbsp; {policy_name}</p>
                     </td>
-                    <td align="right" valign="middle">{severity_badge}</td>
+                    <td align="right" valign="middle" style="white-space:nowrap;padding-left:12px;">{severity_badge}</td>
                   </tr>
                 </table>
-                <p style="margin:10px 0 8px; font-size:14px; color:#334155; line-height:1.65;">{description}</p>
-                <p style="margin:0; font-size:12px;">
-                  <span style="color:#94a3b8;">Source: </span>
-                  <a href="{source_url}" style="color:#3b82f6; text-decoration:none; font-weight:500;">{source_name} &rarr;</a>
-                </p>
-                {before_after}
+                <p style="margin:0 0 12px;font-size:14px;color:#334155;line-height:1.7;">{description}</p>
+                <p style="margin:0;font-size:12px;color:#94a3b8;">Source: <a href="{source_url}" style="color:#3b82f6;text-decoration:none;font-weight:500;">{source_name} &rarr;</a></p>
+                {action_block}
               </td>
             </tr>
           </table>"""
 
 
 def build_email_html(findings: list, review_id: str, test_mode: bool = False) -> str:
-    # Compress findings before embedding in the URL.
-    # zlib reduces ~3000-char JSON to ~900 chars — short enough for Safe Links to handle.
     encoded = encode_findings(findings)
     test_param = "&test=1" if test_mode else ""
-    approve_url = f"{APPROVE_BASE_URL}?id={review_id}&d={encoded}{test_param}"
+    base_url = f"{APPROVE_BASE_URL}?id={review_id}&d={encoded}{test_param}"
+    approve_url = f"{base_url}&action=approve"
+    decline_url = f"{base_url}&action=reject"
+
     date_str = datetime.utcnow().strftime("%d %B %Y")
     count = len(findings)
     high_count = sum(1 for f in findings if f.get("severity") == "High")
     med_count = count - high_count
-
     finding_cards_html = "".join(_finding_card(f, i) for i, f in enumerate(findings))
+    test_banner = (
+        '<tr><td style="padding:0 48px 0;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        '<td style="background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:10px 18px;margin-bottom:0;">'
+        '<p style="margin:0;font-size:12px;font-weight:700;color:#92400e;">TEST MODE &mdash; buttons are live but no changes will be written to Drive.</p>'
+        '</td></tr></table></td></tr>'
+    ) if test_mode else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Policy audit — {count} issue{'s' if count != 1 else ''} found</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Policy audit &mdash; {count} issue{'s' if count != 1 else ''} found</title>
 </head>
-<body style="margin:0; padding:0; background-color:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;">
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9; padding:48px 16px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:40px 16px 56px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:16px; overflow:hidden; border:1px solid #e2e8f0;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#fff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 2px 16px rgba(0,0,0,0.06);">
 
-          <!-- Top bar -->
-          <tr><td style="background:#0f172a; height:5px; font-size:0; line-height:0;">&nbsp;</td></tr>
+          <!-- Accent bar -->
+          <tr><td style="background:#0f172a;height:6px;font-size:0;">&nbsp;</td></tr>
 
           <!-- Header -->
           <tr>
-            <td style="padding:36px 48px 24px;">
+            <td style="padding:40px 48px 28px;">
+              <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#94a3b8;">Adding You &nbsp;&middot;&nbsp; Policy Bot</p>
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td>
-                    <p style="margin:0 0 8px; font-size:11px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:#94a3b8;">Adding You</p>
-                    <h1 style="margin:0; font-size:26px; font-weight:700; color:#0f172a; letter-spacing:-0.5px; line-height:1.2;">Policy compliance audit</h1>
+                  <td valign="middle">
+                    <h1 style="margin:0;font-size:28px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;line-height:1.15;">Policy compliance<br>audit complete.</h1>
                   </td>
-                  <td align="right" valign="middle" style="padding-left:16px; white-space:nowrap;">
-                    <span style="display:inline-block; background:#fef2f2; color:#b91c1c; font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; padding:6px 14px; border-radius:100px; border:1px solid #fecaca;">{count} issue{'s' if count != 1 else ''} found</span>
+                  <td align="right" valign="top" style="padding-left:16px;white-space:nowrap;">
+                    <span style="display:inline-block;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;padding:6px 14px;border-radius:100px;border:1px solid #fecaca;">{count} issue{'s' if count != 1 else ''}</span>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
-          <!-- Divider -->
-          <tr><td style="padding:0 48px;"><div style="height:1px; background:#f1f5f9; font-size:0;">&nbsp;</div></td></tr>
+          {test_banner}
 
-          <!-- Meta strip -->
+          <!-- Stats strip -->
           <tr>
-            <td style="padding:18px 48px 28px;">
-              <table cellpadding="0" cellspacing="8" border="0">
+            <td style="padding:0 48px 28px;">
+              <table cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;border-radius:12px;width:100%;border:1px solid #f1f5f9;">
                 <tr>
-                  <td style="padding-right:28px;">
-                    <p style="margin:0 0 3px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8;">Client</p>
-                    <p style="margin:0; font-size:13px; font-weight:600; color:#334155;">Elevate Performance Academy</p>
+                  <td style="padding:18px 24px;border-right:1px solid #e2e8f0;" width="33%">
+                    <p style="margin:0 0 3px;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#94a3b8;">Client</p>
+                    <p style="margin:0;font-size:13px;font-weight:600;color:#0f172a;">Elevate Performance Academy</p>
                   </td>
-                  <td style="padding-right:28px;">
-                    <p style="margin:0 0 3px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8;">Issues</p>
-                    <p style="margin:0; font-size:13px; font-weight:600; color:#334155;">{high_count} High &nbsp;&middot;&nbsp; {med_count} Medium</p>
+                  <td style="padding:18px 24px;border-right:1px solid #e2e8f0;" width="33%">
+                    <p style="margin:0 0 3px;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#94a3b8;">Findings</p>
+                    <p style="margin:0;font-size:13px;font-weight:600;color:#0f172a;">{high_count} High &nbsp;&middot;&nbsp; {med_count} Medium</p>
                   </td>
-                  <td>
-                    <p style="margin:0 0 3px; font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8;">Run date</p>
-                    <p style="margin:0; font-size:13px; font-weight:600; color:#334155;">{date_str}</p>
+                  <td style="padding:18px 24px;" width="33%">
+                    <p style="margin:0 0 3px;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#94a3b8;">Run date</p>
+                    <p style="margin:0;font-size:13px;font-weight:600;color:#0f172a;">{date_str}</p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
-          <!-- Body -->
+          <!-- Intro -->
           <tr>
-            <td style="padding:0 48px 36px;">
-
-              <p style="margin:0 0 24px; font-size:15px; color:#475569; line-height:1.7;">
-                Monthly compliance check complete. {count} issue{'s were' if count != 1 else ' was'} found across Elevate's policy set.
-                Every finding below is linked to the official source it was checked against — click any source link to verify the reference directly.
-                No changes are made until you approve.
+            <td style="padding:0 48px 24px;">
+              <p style="margin:0;font-size:15px;color:#475569;line-height:1.75;">
+                The monthly compliance check found {count} issue{'s' if count != 1 else ''} across Elevate's policy set.
+                Each finding is linked to the official UK source it was checked against.
+                <strong style="color:#0f172a;">No changes are made until you approve.</strong>
               </p>
+            </td>
+          </tr>
 
+          <!-- Findings -->
+          <tr>
+            <td style="padding:0 48px 32px;">
               {finding_cards_html}
+            </td>
+          </tr>
 
-              <!-- Divider -->
-              <div style="height:1px; background:#f1f5f9; margin:28px 0; font-size:0;">&nbsp;</div>
-
-              <p style="margin:0 0 6px; font-size:17px; font-weight:700; color:#0f172a;">Approve all corrections?</p>
-              <p style="margin:0 0 24px; font-size:14px; color:#64748b; line-height:1.6;">
-                Clicking Approve publishes a full correction report to the Elevate Google Drive folder and logs the decision.
-                Clicking Decline logs the decision with no changes made.
-              </p>
-
-              <table cellpadding="0" cellspacing="0" border="0">
+          <!-- CTA block -->
+          <tr>
+            <td style="padding:0 48px 40px;">
+              <table cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;width:100%;">
                 <tr>
-                  <td style="padding-right:12px;">
-                    <a href="{approve_url}&action=approve"
-                       style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:15px 32px; border-radius:10px; text-decoration:none; letter-spacing:0.1px;">
-                      Approve corrections
+                  <td style="padding:28px 32px;text-align:center;">
+                    <p style="margin:0 0 6px;font-size:18px;font-weight:700;color:#0f172a;">Ready to apply these corrections?</p>
+                    <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.6;">One click applies all corrections directly to your policy documents in Google Drive.</p>
+                    <a href="{approve_url}"
+                       style="display:inline-block;background:#0f172a;color:#ffffff;font-size:15px;font-weight:700;padding:17px 40px;border-radius:12px;text-decoration:none;letter-spacing:0.1px;">
+                      Approve all corrections &rarr;
                     </a>
-                  </td>
-                  <td>
-                    <a href="{approve_url}&action=reject"
-                       style="display:inline-block; background:#ffffff; color:#64748b; font-size:14px; font-weight:500; padding:14px 24px; border-radius:10px; text-decoration:none; border:1px solid #cbd5e1;">
-                      Decline
-                    </a>
+                    <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;">
+                      Not ready? <a href="{decline_url}" style="color:#64748b;text-decoration:underline;">Decline and log for review</a>
+                    </p>
                   </td>
                 </tr>
               </table>
-
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="background:#f8fafc; border-top:1px solid #f1f5f9; padding:20px 48px; border-radius:0 0 16px 16px;">
-              <p style="margin:0; font-size:12px; color:#94a3b8; line-height:1.6;">
-                <a href="https://addingyou.com" style="color:#94a3b8; text-decoration:none;">addingyou.com</a>
+            <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 48px;border-radius:0 0 20px 20px;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.7;">
+                <a href="https://addingyou.com" style="color:#94a3b8;text-decoration:none;font-weight:600;">addingyou.com</a>
                 &nbsp;&middot;&nbsp; Automated compliance audit
                 &nbsp;&middot;&nbsp; Ref: {review_id}
               </p>

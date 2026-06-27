@@ -118,19 +118,21 @@ def register():
 @app.route("/approve", methods=["GET"])
 def approve():
     """
-    GET: Shows a confirmation page (prevents email clients auto-triggering approval).
-    The actual approval is only executed on POST /confirm.
+    GET: Auto-submits a hidden POST form via JavaScript on page load.
+    - Safe Links / email pre-fetchers never execute JS, so they can't trigger approval.
+    - When Chad clicks the link, his browser runs the JS instantly — seamless single click.
+    - Decline is handled here directly (no JS needed, no Drive risk on pre-fetch).
     """
     review_id = request.args.get("id")
     action = request.args.get("action", "approve")
     encoded_data = request.args.get("d", "")
+    test_mode = request.args.get("test", "0") == "1"
     timestamp = datetime.utcnow().strftime('%d %B %Y at %H:%M UTC')
 
     if not review_id:
         return "Missing review ID.", 400
 
     if action == "reject":
-        # Decline goes straight through — no pre-fetch risk on decline
         pending = load_pending_reviews()
         if review_id not in pending:
             pending[review_id] = {"status": "pending"}
@@ -139,79 +141,69 @@ def approve():
         save_pending_reviews(pending)
         return page(
             title="Correction declined",
-            icon_html="""<div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#fef2f2; border-radius:50%; border:2px solid #fecaca;">
+            icon_html="""<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;background:#fef2f2;border-radius:50%;border:2px solid #fecaca;">
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/></svg>
             </div>""",
             headline="Correction declined",
-            body_html="<p style='margin:0; font-size:15px; color:#475569; line-height:1.7;'>The correction has been declined and logged. No changes have been made to the policy.</p>",
+            body_html="<p style='margin:0;font-size:15px;color:#475569;line-height:1.7;'>Logged. No changes have been made to any policy documents.</p>",
             ref=review_id,
             timestamp=timestamp,
         ), 200
 
-    # For approve: show confirmation page first.
-    # Actual approval only fires on POST /confirm to prevent email client pre-fetching.
-    test_mode = request.args.get("test", "0") == "1"
+    # Build the confirm URL — JS will POST to this immediately on page load
     test_param = "&test=1" if test_mode else ""
     confirm_url = f"/confirm?id={review_id}&d={encoded_data}{test_param}"
     test_banner = (
-        '<div style="background:#fef9c3; border:1px solid #fde68a; border-radius:8px; padding:10px 16px; margin-bottom:20px;">'
-        '<p style="margin:0; font-size:12px; font-weight:600; color:#92400e;">TEST MODE — clicking Confirm will NOT write to Drive or change any policies.</p>'
-        '</div>'
+        '<p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#92400e;'
+        'background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;">'
+        'TEST MODE — no changes will be written to Drive.</p>'
     ) if test_mode else ""
-    confirm_label = "Confirm (test — no changes)" if test_mode else "Confirm approval"
-    subtext = (
-        "This is a test run. Clicking Confirm will complete the full approval flow but will not publish anything to Google Drive or modify any policy documents."
-        if test_mode else
-        "You are about to approve the compliance corrections. This will publish a full correction report to the Elevate Google Drive folder."
-    )
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Confirm approval</title>
+  <title>Approving...</title>
   <style>
-    * {{ box-sizing: border-box; }}
-    body {{ margin:0; padding:0; background:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }}
-    .wrapper {{ min-height:100vh; padding:40px 16px; display:flex; align-items:center; justify-content:center; }}
-    .card {{ background:#fff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden; width:100%; max-width:520px; }}
-    .card-top {{ background:#0f172a; height:5px; }}
-    .card-body {{ padding:48px 40px 40px; text-align:center; }}
-    .card-footer {{ background:#f8fafc; border-top:1px solid #f1f5f9; padding:18px 40px; text-align:center; }}
-    .brand {{ margin:0 0 28px; font-size:11px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:#94a3b8; }}
-    .headline {{ margin:20px 0 12px; font-size:24px; font-weight:700; color:#0f172a; }}
-    .subtext {{ margin:0 0 32px; font-size:15px; color:#64748b; line-height:1.7; }}
-    .btn-confirm {{ display:inline-block; background:#0f172a; color:#fff; font-size:14px; font-weight:600; padding:15px 32px; border-radius:10px; border:none; cursor:pointer; text-decoration:none; margin-right:10px; }}
-    .btn-cancel {{ display:inline-block; background:#fff; color:#64748b; font-size:14px; font-weight:500; padding:14px 24px; border-radius:10px; border:1px solid #cbd5e1; cursor:pointer; text-decoration:none; }}
-    .footer-text {{ margin:0; font-size:12px; color:#94a3b8; }}
-    @media (max-width:480px) {{
-      .card-body {{ padding:36px 24px 32px; }}
-      .card-footer {{ padding:16px 24px; }}
-    }}
+    *{{box-sizing:border-box;}}
+    body{{margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;}}
+    .wrap{{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;}}
+    .card{{background:#fff;border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:48px 40px;text-align:center;max-width:440px;width:100%;}}
+    .spinner{{width:48px;height:48px;border:3px solid #e2e8f0;border-top-color:#0f172a;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 24px;}}
+    @keyframes spin{{to{{transform:rotate(360deg)}}}}
+    h2{{margin:0 0 8px;font-size:20px;font-weight:700;color:#0f172a;}}
+    p{{margin:0;font-size:14px;color:#64748b;line-height:1.6;}}
+    .ref{{margin-top:24px;font-size:11px;color:#cbd5e1;}}
+    @media(max-width:480px){{.card{{padding:36px 24px;}}}}
   </style>
 </head>
 <body>
-  <div class="wrapper">
+  <div class="wrap">
     <div class="card">
-      <div class="card-top"></div>
-      <div class="card-body">
-        <p class="brand">Adding You</p>
-        {test_banner}
-        <div style="display:inline-flex; align-items:center; justify-content:center; width:72px; height:72px; background:#f0fdf4; border-radius:50%; border:2px solid #bbf7d0;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <h1 class="headline">Confirm approval</h1>
-        <p class="subtext">{subtext}</p>
-        <form method="POST" action="{confirm_url}" style="display:inline;">
-          <button type="submit" class="btn-confirm">{confirm_label}</button>
-        </form>
-        <a href="javascript:history.back()" class="btn-cancel">Cancel</a>
-      </div>
-      <div class="card-footer">
-        <p class="footer-text">Ref: {review_id}</p>
-      </div>
+      {test_banner}
+      <div class="spinner"></div>
+      <h2>Applying corrections...</h2>
+      <p>Updating your policy documents. This will only take a moment.</p>
+      <p class="ref">Ref: {review_id}</p>
     </div>
   </div>
+  <form id="f" method="POST" action="{confirm_url}"></form>
+  <script>
+    // Auto-submit immediately — email pre-fetchers don't run JS so this is safe.
+    // Fallback: if JS is somehow blocked, show a manual button after 3 seconds.
+    document.getElementById('f').submit();
+    setTimeout(function(){{
+      var d = document.querySelector('.spinner');
+      if(d) d.style.display='none';
+      document.querySelector('h2').textContent = 'Tap to approve';
+      document.querySelector('p').innerHTML =
+        '<button onclick="document.getElementById(\\'f\\').submit()" '
+        'style="background:#0f172a;color:#fff;border:none;padding:14px 28px;'
+        'border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;">'
+        'Confirm approval</button>';
+    }}, 3000);
+  </script>
 </body>
 </html>""", 200
 
@@ -292,7 +284,19 @@ def confirm():
             else:
                 doc_url = publish_approved_correction(correction, review_id)
         except Exception as e:
-            print(f"Warning: Drive publish failed: {e}")
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"Drive publish FAILED for {review_id}: {e}\n{error_detail}")
+            return page(
+                title="Drive update failed",
+                icon_html="""<div style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;background:#fef2f2;border-radius:50%;border:2px solid #fecaca;">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>
+                </div>""",
+                headline="Drive update failed",
+                body_html=f"<p style='margin:0;font-size:15px;color:#475569;line-height:1.7;'>The approval was logged but the policy document could not be updated. Check Railway logs for the full error.</p><pre style='margin:16px 0 0;font-size:11px;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;overflow:auto;'>{str(e)}</pre>",
+                ref=review_id,
+                timestamp=timestamp,
+            ), 500
 
     stored = {"status": "pending"}
     if findings:

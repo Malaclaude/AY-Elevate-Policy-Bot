@@ -35,7 +35,28 @@ SCOPES = [
 GDOC_MIME = "application/vnd.google-apps.document"
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-# Maps policy_name values (from findings) to Drive search terms.
+# ── Direct file ID registry (bypasses Drive search entirely) ────────────────
+# These are the confirmed file IDs for Elevate's live policy docs.
+# Using direct IDs avoids any search/indexing failures on Railway.
+KNOWN_FILE_IDS = {
+    "Accessibility and Inclusiveness Policy": (
+        "1HYXCO9UgJ_Jzd_RXVfLOoY_frUvFgoD4",
+        DOCX_MIME,
+        "https://drive.google.com/file/d/1HYXCO9UgJ_Jzd_RXVfLOoY_frUvFgoD4/view",
+    ),
+    "Safeguarding Policy": (
+        "1kZDRHmz4b-liBx_w8Nnwvxuz56GLtJow",
+        DOCX_MIME,
+        "https://drive.google.com/file/d/1kZDRHmz4b-liBx_w8Nnwvxuz56GLtJow/view",
+    ),
+    "Full Policy Set (all policies)": (
+        "1kZDRHmz4b-liBx_w8Nnwvxuz56GLtJow",
+        DOCX_MIME,
+        "https://drive.google.com/file/d/1kZDRHmz4b-liBx_w8Nnwvxuz56GLtJow/view",
+    ),
+}
+
+# Maps policy_name values (from findings) to Drive search terms (fallback only).
 POLICY_SEARCH_TERMS = {
     "Accessibility and Inclusiveness Policy": "Accessibility and Inclusiveness Policy",
     "Safeguarding Policy": "Safeguarding Policy",
@@ -248,10 +269,17 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
         gap_id = finding.get("gap_id", "")
 
         # Insurance is not a policy doc — pin to Safeguarding for the comment
-        search_key = "Safeguarding Policy" if gap_id == "insurance_expired" else policy_name
-        search_term = POLICY_SEARCH_TERMS.get(search_key, search_key)
+        lookup_key = "Safeguarding Policy" if gap_id == "insurance_expired" else policy_name
 
-        file_id, mime, doc_url = find_policy_doc(drive_service, search_term)
+        # Use direct file ID registry first — bypasses Drive search entirely
+        if lookup_key in KNOWN_FILE_IDS:
+            file_id, mime, doc_url = KNOWN_FILE_IDS[lookup_key]
+            print(f"Using known file ID for '{lookup_key}': {file_id}")
+        else:
+            # Fallback: search Drive
+            search_term = POLICY_SEARCH_TERMS.get(lookup_key, lookup_key)
+            file_id, mime, doc_url = find_policy_doc(drive_service, search_term)
+
         if not file_id:
             skipped.append(policy_name)
             continue
