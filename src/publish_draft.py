@@ -1,18 +1,27 @@
 """
 publish_draft.py
-On approval, directly edits the existing policy documents in Google Drive.
+On approval, directly edits the existing policy documents in Google Drive in-place.
 
-- wrong_reference / outdated_reference  →  replaceAllText in the policy Google Doc
-- missing_coverage / expired_document   →  Drive comment on the relevant doc (action required)
+Strategy:
+- .docx files  →  download bytes, replace text in the XML, re-upload to overwrite the
+                   original file (same file ID, same location, no duplicates)
+- Google Docs  →  replaceAllText via the Docs API (instant, no download needed)
+- missing_coverage / expired_document  →  Drive comment on the relevant doc
 
-No new documents are created unless the policy doc cannot be found at all (fallback only).
+No new documents are ever created unless every policy doc lookup fails (fallback only).
 """
 
+import io
 import os
+import re
 from datetime import datetime
+
+from docx import Document
+
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,12 +32,14 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
+GDOC_MIME = "application/vnd.google-apps.document"
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
 # Maps policy_name values (from findings) to Drive search terms.
-# "Full Policy Set" findings are pinned to the Safeguarding policy as the best home.
 POLICY_SEARCH_TERMS = {
     "Accessibility and Inclusiveness Policy": "Accessibility and Inclusiveness Policy",
-    "Safeguarding Policy": "Safeguarding",
-    "Full Policy Set (all policies)": "Safeguarding",
+    "Safeguarding Policy": "Safeguarding Policy",
+    "Full Policy Set (all policies)": "Safeguarding Policy",
 }
 
 
@@ -61,13 +72,10 @@ def get_services():
 
 def find_policy_doc(drive_service, search_term: str):
     """
-    Find a policy document in Drive by name. Returns (doc_id, doc_url) or (None, None).
-    Prefers native Google Docs. If only a .docx is found, auto-converts it to
-    Google Docs format in-place so replaceAllText can work on it.
+    Find a policy document in Drive by name.
+    Returns (file_id, mime_type, doc_url) or (None, None, None).
+    Prefers native Google Docs; falls back to .docx.
     """
-    GDOC_MIME = "application/vnd.google-apps.document"
-    DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
     results = drive_service.files().list(
         q=(
             f"name contains '{search_term}' "
@@ -75,7 +83,7 @@ def find_policy_doc(drive_service, search_term: str):
             f"and trashed=false"
         ),
         spaces="drive",
-        fields="files(id, name, mimeType, parents)",
+        fields="files(id, name, mimeType)",
         includeItemsFromAllDrives=True,
         supportsAllDrives=True,
     ).execute()
@@ -83,79 +91,145 @@ def find_policy_doc(drive_service, search_term: str):
 
     if not files:
         print(f"Policy doc not found for search term: '{search_term}'")
-        return None, None
+        return None, None, None
 
-    # Prefer a native Google Doc if one already exists
+    # Prefer native Google Doc if one exists
     gdocs = [f for f in files if f["mimeType"] == GDOC_MIME]
-    if gdocs:
-        doc_id = gdocs[0]["id"]
-        doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-        print(f"Found Google Doc: '{gdocs[0]['name']}' ({doc_id})")
-        return doc_id, doc_url
+    chosen = gdocs[0] if gdocs else files[0]
 
-    # Only a .docx found — auto-convert to Google Docs format
-    docx = files[0]
-    print(f"Found .docx: '{docx['name']}' — converting to Google Docs format...")
-    parents = docx.get("parents", [])
-    converted = drive_service.files().copy(
-        fileId=docx["id"],
-        body={
-            "name": docx["name"].replace(".docx", "").replace(".doc", ""),
-            "mimeType": GDOC_MIME,
-            **({"parents": parents} if parents else {}),
-        },
+    mime = chosen["mimeType"]
+    file_id = chosen["id"]
+    doc_url = (
+        f"https://docs.google.com/document/d/{file_id}/edit"
+        if mime == GDOC_MIME
+        else f"https://drive.google.com/file/d/{file_id}/view"
+    )
+    print(f"Found: '{chosen['name']}' ({mime.split('.')[-1]}) — {file_id}")
+    return file_id, mime, doc_url
+
+
+# ── .docx in-place editing ──────────────────────────────────────────────────
+
+def _download_bytes(drive_service, file_id: str) -> bytes:
+    request = drive_service.files().get_media(
+        fileId=file_id, supportsAllDrives=True
+    )
+    buf = io.BytesIO()
+    downloader = MediaIoBaseDownload(buf, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    return buf.getvalue()
+
+
+def _replace_in_docx_bytes(docx_bytes: bytes, old_text: str, new_text: str) -> tuple:
+    """
+    Replace text in a .docx using python-docx. Returns (updated_bytes, count).
+
+    Handles text split across multiple Word runs (common with spell-check markers,
+    autocorrect, or mixed formatting). For each paragraph containing the target
+    phrase, the text is consolidated into the first run and corrected — preserving
+    the paragraph's other formatting while reliably rewriting the target phrase.
+    """
+    doc = Document(io.BytesIO(docx_bytes))
+    count = 0
+    pattern = re.compile(re.escape(old_text), re.IGNORECASE)
+
+    def _fix_para(para):
+        nonlocal count
+        full = para.text
+        if not pattern.search(full):
+            return
+        corrected = pattern.sub(new_text, full)
+        runs = para.runs
+        if not runs:
+            return
+        # Write corrected text into first run, blank the rest
+        runs[0].text = corrected
+        for run in runs[1:]:
+            run.text = ""
+        count += 1
+
+    for para in doc.paragraphs:
+        _fix_para(para)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    _fix_para(para)
+
+    output = io.BytesIO()
+    doc.save(output)
+    return output.getvalue(), count
+
+
+def _upload_bytes(drive_service, file_id: str, file_bytes: bytes):
+    """Overwrite an existing Drive file's content in-place."""
+    media = MediaIoBaseUpload(
+        io.BytesIO(file_bytes), mimetype=DOCX_MIME, resumable=False
+    )
+    drive_service.files().update(
+        fileId=file_id,
+        media_body=media,
         supportsAllDrives=True,
     ).execute()
-    doc_id = converted["id"]
-    doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
-    print(f"Converted to Google Doc: '{converted['name']}' ({doc_id})")
-    return doc_id, doc_url
+    print(f"File {file_id} updated in-place.")
 
 
-def apply_text_replacement(docs_service, doc_id: str, old_text: str, new_text: str) -> int:
-    """
-    Replace all occurrences of old_text with new_text in a Google Doc.
-    Case-insensitive. Returns the number of replacements made.
-    """
-    response = docs_service.documents().batchUpdate(
-        documentId=doc_id,
-        body={"requests": [
-            {"replaceAllText": {
-                "containsText": {"text": old_text, "matchCase": False},
-                "replaceText": new_text,
-            }}
-        ]},
-    ).execute()
-    replies = response.get("replies", [{}])
-    count = (
-        replies[0].get("replaceAllText", {}).get("occurrencesChanged", 0)
-        if replies else 0
-    )
-    print(f"replaceAllText: '{old_text}' → '{new_text}' — {count} replacement(s) in {doc_id}")
+def edit_docx_in_place(drive_service, file_id: str, old_text: str, new_text: str) -> int:
+    """Download, replace text, re-upload. Returns number of replacements made."""
+    docx_bytes = _download_bytes(drive_service, file_id)
+    updated_bytes, count = _replace_in_docx_bytes(docx_bytes, old_text, new_text)
+    if count > 0:
+        _upload_bytes(drive_service, file_id, updated_bytes)
+        print(f"Replaced '{old_text}' → '{new_text}' ({count} occurrence(s)) in {file_id}")
+    else:
+        print(f"No match for '{old_text}' in {file_id} — text may already be correct.")
     return count
 
 
-def add_drive_comment(drive_service, doc_id: str, comment_text: str):
-    """Add a comment to a Google Drive file."""
-    drive_service.comments().create(
-        fileId=doc_id,
-        body={"content": comment_text},
-        fields="id",
-    ).execute()
-    print(f"Comment added to doc {doc_id}")
+# ── Google Docs API editing ─────────────────────────────────────────────────
 
+def edit_gdoc_in_place(docs_service, file_id: str, old_text: str, new_text: str) -> int:
+    """replaceAllText in a native Google Doc. Returns number of replacements."""
+    response = docs_service.documents().batchUpdate(
+        documentId=file_id,
+        body={"requests": [{"replaceAllText": {
+            "containsText": {"text": old_text, "matchCase": False},
+            "replaceText": new_text,
+        }}]},
+    ).execute()
+    replies = response.get("replies", [{}])
+    count = replies[0].get("replaceAllText", {}).get("occurrencesChanged", 0) if replies else 0
+    print(f"replaceAllText: '{old_text}' → '{new_text}' ({count} occurrence(s)) in {file_id}")
+    return count
+
+
+# ── Drive comments ──────────────────────────────────────────────────────────
+
+def add_drive_comment(drive_service, file_id: str, comment_text: str):
+    try:
+        drive_service.comments().create(
+            fileId=file_id,
+            body={"content": comment_text},
+            fields="id",
+        ).execute()
+        print(f"Comment added to {file_id}")
+    except Exception as e:
+        print(f"Warning: could not add comment to {file_id}: {e}")
+
+
+# ── Main entry point ────────────────────────────────────────────────────────
 
 def publish_approved_correction(findings_or_correction, review_id: str) -> str:
     """
-    Main entry point called by the approve webhook.
-    Accepts a list of findings (new flow) or a single correction dict (legacy).
-
     For each finding:
-      - wrong_reference / outdated_reference  →  edits the policy doc in-place
-      - missing_coverage / expired_document   →  adds a Drive comment (action required)
+      - wrong_reference / outdated_reference  →  edit the policy file in-place
+        (.docx: download → replace XML → re-upload | Google Doc: replaceAllText)
+      - missing_coverage / expired_document   →  Drive comment (action required)
 
-    Returns the URL of the first updated document (shown on the confirmation page).
-    Falls back to creating a summary doc if no policy docs could be located.
+    Returns the URL of the first updated file (for the confirmation page button).
     """
     drive_service, docs_service = get_services()
 
@@ -165,7 +239,7 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
         findings = findings_or_correction
 
     date_str = datetime.utcnow().strftime("%d %B %Y at %H:%M UTC")
-    updated_docs = {}   # policy_name → doc_url
+    updated_docs = {}
     skipped = []
 
     for finding in findings:
@@ -173,103 +247,80 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
         gap_type = finding.get("gap_type", "")
         gap_id = finding.get("gap_id", "")
 
-        # Special case: insurance certificate is not a Google Doc — Drive comment only
-        # We pin it to the Safeguarding policy as the closest relevant document
-        if gap_id == "insurance_expired":
-            search_term = POLICY_SEARCH_TERMS.get("Safeguarding Policy", "Safeguarding")
-        else:
-            search_term = POLICY_SEARCH_TERMS.get(policy_name, policy_name)
+        # Insurance is not a policy doc — pin to Safeguarding for the comment
+        search_key = "Safeguarding Policy" if gap_id == "insurance_expired" else policy_name
+        search_term = POLICY_SEARCH_TERMS.get(search_key, search_key)
 
-        doc_id, doc_url = find_policy_doc(drive_service, search_term)
-
-        if not doc_id:
+        file_id, mime, doc_url = find_policy_doc(drive_service, search_term)
+        if not file_id:
             skipped.append(policy_name)
             continue
 
+        source = finding.get("source", {})
+        source_name = source.get("name", "") if isinstance(source, dict) else ""
+        source_url = source.get("url", "") if isinstance(source, dict) else ""
+
         if gap_type in ("wrong_reference", "outdated_reference"):
-            # Use search_text if provided (exact phrase in doc), fall back to wrong_reference
             search_phrase = finding.get("search_text") or finding.get("wrong_reference", "")
             replacement = finding.get("correct_reference", "")
 
-            if search_phrase and replacement:
-                count = apply_text_replacement(docs_service, doc_id, search_phrase, replacement)
+            if not search_phrase or not replacement:
+                print(f"Missing search_phrase or replacement for '{gap_id}' — skipping.")
+                skipped.append(policy_name)
+                continue
 
-                if count > 0:
-                    source = finding.get("source", {})
-                    comment = (
-                        f"[AY Policy Bot — {date_str}] Automated correction applied (Ref: {review_id})\n"
-                        f"Changed: \"{search_phrase}\" → \"{replacement}\"\n"
-                        f"Source: {source.get('name', '')} — {source.get('url', '')}"
-                    )
-                    try:
-                        add_drive_comment(drive_service, doc_id, comment)
-                    except Exception as e:
-                        print(f"Warning: could not add comment to {doc_id}: {e}")
-                    updated_docs[policy_name] = doc_url
-                else:
-                    print(
-                        f"No match for '{search_phrase}' in '{policy_name}' "
-                        f"— text may already be correct or the doc is a .docx not a Google Doc."
-                    )
-                    skipped.append(policy_name)
+            if mime == DOCX_MIME:
+                count = edit_docx_in_place(drive_service, file_id, search_phrase, replacement)
             else:
-                print(f"Missing search_phrase or replacement for finding '{gap_id}' — skipping.")
+                count = edit_gdoc_in_place(docs_service, file_id, search_phrase, replacement)
+
+            if count > 0:
+                add_drive_comment(drive_service, file_id, (
+                    f"[AY Policy Bot — {date_str}] Automated correction applied (Ref: {review_id})\n"
+                    f"Changed: \"{search_phrase}\" → \"{replacement}\"\n"
+                    f"Source: {source_name} — {source_url}"
+                ))
+                updated_docs[policy_name] = doc_url
+            else:
                 skipped.append(policy_name)
 
         elif gap_type in ("missing_coverage", "expired_document"):
-            # Can't auto-insert prose — flag with a Drive comment for manual action
             action = finding.get("recommended_action") or finding.get("description", "")
-            source = finding.get("source", {})
-            comment = (
+            add_drive_comment(drive_service, file_id, (
                 f"[AY Policy Bot — {date_str}] ACTION REQUIRED (Ref: {review_id})\n"
                 f"{action}\n"
-                f"Source: {source.get('name', '')} — {source.get('url', '')}"
-            )
-            try:
-                add_drive_comment(drive_service, doc_id, comment)
-                updated_docs[policy_name] = doc_url
-            except Exception as e:
-                print(f"Warning: could not add comment to {doc_id}: {e}")
-                skipped.append(policy_name)
+                f"Source: {source_name} — {source_url}"
+            ))
+            updated_docs[policy_name] = doc_url
 
         else:
-            print(f"Unknown gap_type '{gap_type}' for finding '{gap_id}' — skipping.")
+            print(f"Unknown gap_type '{gap_type}' for '{gap_id}' — skipping.")
             skipped.append(policy_name)
 
     if skipped:
-        print(f"Skipped {len(skipped)} finding(s) (doc not found or no text match): {skipped}")
+        print(f"Skipped {len(skipped)} finding(s): {skipped}")
 
     if not updated_docs:
-        print("No documents were updated. Creating fallback summary doc.")
-        return _create_fallback_summary(drive_service, docs_service, findings, review_id)
+        print("No documents updated — creating fallback summary.")
+        return _fallback_summary(drive_service, docs_service, findings, review_id)
 
     first_url = next(iter(updated_docs.values()))
-    print(f"Done — {len(updated_docs)} document(s) updated: {list(updated_docs.values())}")
+    print(f"Done — {len(updated_docs)} document(s) updated.")
     return first_url
 
 
-def _create_fallback_summary(drive_service, docs_service, findings, review_id: str) -> str:
-    """
-    Creates a summary doc only if no policy documents could be located in Drive.
-    This prevents a silent failure — there's always something to link to on the
-    confirmation page.
-    """
+def _fallback_summary(drive_service, docs_service, findings, review_id: str) -> str:
+    """Creates a summary doc only when no policy files could be found or edited."""
     date_str = datetime.utcnow().strftime("%d %B %Y")
-    doc_title = f"Elevate Policy Bot — Manual Action Required {date_str} [{review_id}]"
-
-    lines = [
-        doc_title, "",
-        f"Review ID:  {review_id}",
-        f"Date:       {date_str}", "",
-        "The bot could not locate the policy documents in Google Drive.",
-        "The corrections below require manual application:", "",
-    ]
+    title = f"Elevate Policy Bot — Manual Action Required {date_str} [{review_id}]"
+    lines = [title, "", f"Review ID: {review_id}", f"Date: {date_str}", "",
+             "The bot could not locate or edit the policy documents.", ""]
     for i, f in enumerate(findings, 1):
         lines.append(f"FINDING {i}: {f.get('policy_name', '')}")
         lines.append(f.get("description", ""))
-        if f.get("wrong_reference"):
+        if f.get("search_text") or f.get("wrong_reference"):
             lines.append(
-                f"Change: '{f.get('search_text') or f['wrong_reference']}'"
+                f"Change: '{f.get('search_text') or f.get('wrong_reference')}'"
                 f" → '{f.get('correct_reference', '')}'"
             )
         elif f.get("recommended_action"):
@@ -277,36 +328,14 @@ def _create_fallback_summary(drive_service, docs_service, findings, review_id: s
         lines.append("")
 
     doc = drive_service.files().create(
-        body={"name": doc_title, "mimeType": "application/vnd.google-apps.document"},
+        body={"name": title, "mimeType": GDOC_MIME},
         supportsAllDrives=True,
     ).execute()
     doc_id = doc["id"]
     docs_service.documents().batchUpdate(
         documentId=doc_id,
-        body={"requests": [
-            {"insertText": {"location": {"index": 1}, "text": "\n".join(lines)}}
-        ]},
+        body={"requests": [{"insertText": {"location": {"index": 1}, "text": "\n".join(lines)}}]},
     ).execute()
     url = f"https://docs.google.com/document/d/{doc_id}/edit"
-    print(f"Fallback summary created: {url}")
+    print(f"Fallback summary: {url}")
     return url
-
-
-if __name__ == "__main__":
-    # Quick smoke test — runs against real Drive
-    sample = {
-        "gap_id": "ada_jurisdiction",
-        "gap_type": "wrong_reference",
-        "policy_name": "Accessibility and Inclusiveness Policy",
-        "severity": "High",
-        "source": {
-            "name": "Equality Act 2010",
-            "url": "https://www.gov.uk/guidance/equality-act-2010-guidance",
-        },
-        "wrong_reference": "Americans with Disabilities Act (ADA)",
-        "search_text": "Americans with Disabilities Act",
-        "correct_reference": "Equality Act 2010",
-        "description": "Policy cites US law instead of UK Equality Act 2010.",
-    }
-    url = publish_approved_correction(sample, "test-001")
-    print(f"Result: {url}")
