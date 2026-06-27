@@ -33,7 +33,10 @@ RAILWAY_REGISTER_URL = os.getenv(
     "RAILWAY_REGISTER_URL",
     "https://ay-elevate-policy-bot-production.up.railway.app/register",
 )
-REVIEWER_EMAIL = os.getenv("REVIEWER_EMAIL", "malachiavstreih@gmail.com")
+REVIEWER_EMAIL = os.getenv(
+    "REVIEWER_EMAIL",
+    "chad@elevate-performance.uk,louis@elevate-performance.uk,malachi@addingyou.com",
+)
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "joelleonmcfarlane@outlook.com")
 
 
