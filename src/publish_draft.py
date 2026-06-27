@@ -329,8 +329,17 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
         print(f"Skipped {len(skipped)} finding(s): {skipped}")
 
     if not updated_docs:
-        print("No documents updated — creating fallback summary.")
-        return _fallback_summary(drive_service, docs_service, findings, review_id)
+        # Nothing was edited or commented. Do NOT pretend this succeeded by
+        # silently creating a throwaway summary doc — that masks the real failure
+        # (e.g. the bot's Google account lacks write access to the policy files,
+        # or the search phrase did not match). Raise so /confirm surfaces the error.
+        raise RuntimeError(
+            "No policy documents were updated. "
+            f"Skipped {len(skipped)} finding(s): {skipped}. "
+            "Most likely cause: the authenticated Google account does not have "
+            "editor access to the policy files in the Shared Drive, or the "
+            "search phrase did not match the document text."
+        )
 
     first_url = next(iter(updated_docs.values()))
     print(f"Done — {len(updated_docs)} document(s) updated.")
