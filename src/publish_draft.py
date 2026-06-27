@@ -212,6 +212,37 @@ def edit_docx_in_place(drive_service, file_id: str, old_text: str, new_text: str
     return count
 
 
+def _insert_paragraph_bytes(docx_bytes: bytes, text: str) -> bytes:
+    """Append a paragraph at the end of the body, preserving everything else
+    (images, headers, styles) byte-for-byte. Inserts before the document-level
+    sectPr so the new text sits at the end of the document content."""
+    para = f'<w:p><w:r><w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r></w:p>'
+    src = zipfile.ZipFile(io.BytesIO(docx_bytes), "r")
+    out_buf = io.BytesIO()
+    with zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename == "word/document.xml":
+                xml = data.decode("utf-8")
+                idx = xml.rfind("<w:sectPr")
+                if idx != -1:
+                    xml = xml[:idx] + para + xml[idx:]
+                else:
+                    xml = xml.replace("</w:body>", para + "</w:body>", 1)
+                data = xml.encode("utf-8")
+            dst.writestr(item, data)
+    src.close()
+    return out_buf.getvalue()
+
+
+def insert_paragraph_in_docx(drive_service, file_id: str, text: str):
+    """Download, append a paragraph, re-upload. Used for approved 'add a section' fixes."""
+    docx_bytes = _download_bytes(drive_service, file_id)
+    new_bytes = _insert_paragraph_bytes(docx_bytes, text)
+    _upload_bytes(drive_service, file_id, new_bytes)
+    print(f"Inserted paragraph into {file_id}")
+
+
 # ── Google Docs API editing ─────────────────────────────────────────────────
 
 def edit_gdoc_in_place(docs_service, file_id: str, old_text: str, new_text: str) -> int:
@@ -314,10 +345,30 @@ def publish_approved_correction(findings_or_correction, review_id: str) -> str:
             else:
                 skipped.append(policy_name)
 
-        elif gap_type in ("missing_coverage", "expired_document"):
+        elif gap_type == "missing_coverage":
+            # Chad's multiple-choice answer (if any) is injected as _insert_text.
+            insert_text = finding.get("_insert_text")
+            if insert_text:
+                insert_paragraph_in_docx(drive_service, file_id, insert_text)
+                add_drive_comment(drive_service, file_id, (
+                    f"[AY Policy Bot, {date_str}] Section added on approval (Ref: {review_id})\n"
+                    f"Source: {source_name}, {source_url}"
+                ))
+            else:
+                # No answer chosen, or "handle later": leave a note, no edit.
+                action = finding.get("recommended_action") or finding.get("description", "")
+                add_drive_comment(drive_service, file_id, (
+                    f"[AY Policy Bot, {date_str}] ACTION REQUIRED (Ref: {review_id})\n"
+                    f"{action}\n"
+                    f"Source: {source_name}, {source_url}"
+                ))
+            updated_docs[policy_name] = doc_url
+
+        elif gap_type == "expired_document":
+            # Awareness only. The bot must never fake a valid document (e.g. insurance).
             action = finding.get("recommended_action") or finding.get("description", "")
             add_drive_comment(drive_service, file_id, (
-                f"[AY Policy Bot, {date_str}] ACTION REQUIRED (Ref: {review_id})\n"
+                f"[AY Policy Bot, {date_str}] FOR AWARENESS, document out of date (Ref: {review_id})\n"
                 f"{action}\n"
                 f"Source: {source_name}, {source_url}"
             ))

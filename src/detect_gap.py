@@ -180,9 +180,28 @@ def check_ofsted_camps_gap(policy_text: str):
         return {
             "gap_id": "ofsted_camps_gap",
             "gap_type": "missing_coverage",
-            "policy_name": "Full Policy Set (all policies)",
+            "policy_name": "Safeguarding Policy",
             "severity": "Medium",
             "source": SOURCES["ofsted_exemptions"],
+            "mode": "clarify",
+            "clarify_question": "Does Elevate hold Ofsted childcare registration for its camps and holiday clubs?",
+            "clarify_options": [
+                {
+                    "id": "registered",
+                    "label": "Yes, we are Ofsted registered",
+                    "insert": "Ofsted Registration: Elevate Performance Academy is registered with Ofsted for the provision of childcare at its holiday camps and clubs. [DRAFT added by AY Policy Bot, confirm the registration number and insert it here.]",
+                },
+                {
+                    "id": "exempt",
+                    "label": "No, we operate under an exemption",
+                    "insert": "Ofsted Registration: Elevate Performance Academy's holiday camps and clubs operate under the activity-based exemption set out in the Childcare (Exemptions from Registration) Order 2008, and registration is therefore not required. [DRAFT added by AY Policy Bot, confirm this exemption applies to your provision.]",
+                },
+                {
+                    "id": "later",
+                    "label": "Not sure, just leave me a note to handle it",
+                    "insert": None,
+                },
+            ],
             "description": (
                 "No policy in the set references Ofsted childcare registration requirements or exemptions for sports camps and holiday clubs. "
                 "If Elevate runs camps for children under 8 for more than 2 hours/day, Ofsted registration is legally required. "
@@ -209,6 +228,7 @@ def check_insurance_expiry() -> dict:
         "policy_name": "Simply Business Insurance Certificate (CHBS4860808XB)",
         "severity": "High",
         "source": SOURCES["simply_business"],
+        "mode": "notice",
         "description": (
             "The insurance certificate on file (Simply Business, policy ref CHBS4860808XB) expired on 18 February 2026. "
             "Cover ran 19 February 2025 to 18 February 2026. "
@@ -240,29 +260,34 @@ def detect_all_gaps(policy_text: str):
     """
     findings = []
 
-    # ── Text-based detection ──────────────────────────────────────────────
-    # Fires only if the scanned text actually contains the wrong reference.
+    # Live Safeguarding text (empty string if Drive unreachable).
+    try:
+        from read_policy import read_safeguarding_policy
+        safeguarding_text = read_safeguarding_policy()
+    except Exception:
+        safeguarding_text = ""
+
+    # ── Text-based detection on the LIVE documents ────────────────────────
+    # Each fires only if the live doc actually still contains the wrong reference,
+    # so a fix that has already been applied is not re-flagged next run.
     ada = check_ada_error(policy_text)
     if ada:
         findings.append(ada)
 
-    wt_text = check_working_together_version(policy_text)
+    wt_text = check_working_together_version(safeguarding_text) if safeguarding_text else None
     if wt_text:
         findings.append(wt_text)
-
-    # ── Corpus-confirmed findings (DEMO) ──────────────────────────────────
-    # These are real errors confirmed by manual review of Chad's policy corpus
-    # on 8 June 2026. They fire unconditionally for the demo.
-    # TODO: replace with text-based scans once full corpus is being read.
-    if not wt_text:
-        # Only add corpus-confirmed version if text-scan didn't already find it
+    elif not safeguarding_text:
+        # Drive unreadable: fall back to the corpus-confirmed finding so the run
+        # is not silently empty. (If Safeguarding read fine and the phrase is gone,
+        # we correctly do NOT flag it.)
         findings.append(check_working_together_corpus_confirmed())
 
+    # Insurance is an external certificate expiry, known from manual review.
     findings.append(check_insurance_expiry())
 
-    # ── Absence checks ────────────────────────────────────────────────────
-    # Fires if a required topic is absent from the scanned text.
-    ofsted = check_ofsted_camps_gap(policy_text)
+    # ── Absence check across the live documents ───────────────────────────
+    ofsted = check_ofsted_camps_gap(policy_text + " " + safeguarding_text)
     if ofsted:
         findings.append(ofsted)
 

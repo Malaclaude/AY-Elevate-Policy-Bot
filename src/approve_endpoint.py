@@ -44,7 +44,8 @@ REVIEW_TEMPLATE = """<!DOCTYPE html>
   .chead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
   .idx{font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink);}
   .sev{font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);}
-  h3{margin:0 0 8px;font-size:17px;font-weight:700;letter-spacing:-0.2px;}
+  h3{margin:0 0 6px;font-size:17px;font-weight:700;letter-spacing:-0.2px;}
+  .tag{margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;color:var(--muted);}
   .desc{margin:0;font-size:14px;color:var(--soft);line-height:1.7;}
   .detail{margin-top:14px;}
   .chg{padding:11px 0;border-top:1px solid var(--line);}
@@ -52,13 +53,16 @@ REVIEW_TEMPLATE = """<!DOCTYPE html>
   .old{font-size:14px;color:var(--muted);text-decoration:line-through;}
   .new{font-size:14px;color:var(--ink);font-weight:700;}
   .act{font-size:14px;color:var(--soft);line-height:1.6;}
+  .opts{margin-top:12px;}
+  .opt{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:14px;color:var(--ink);}
+  .opt input{margin-top:2px;}
+  .opt span{line-height:1.5;}
   .src{margin:14px 0 0;font-size:12px;color:var(--muted);}
   .src a{color:var(--soft);}
   .actions{display:flex;align-items:center;gap:16px;margin-top:20px;}
-  button.approve{background:var(--ink);color:var(--bg);border:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;}
-  button.approve:disabled{background:var(--ok);color:#fff;cursor:default;opacity:1;}
+  button.primary{background:var(--ink);color:var(--bg);border:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;}
+  button.primary:disabled{opacity:0.55;cursor:default;}
   button.skip{background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;}
-  button.skip:disabled{cursor:default;opacity:0.5;}
   .cstatus{font-size:13px;font-weight:700;color:var(--ok);}
   .card.skipped .cstatus{color:var(--muted);}
   .bar{position:sticky;bottom:0;margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;}
@@ -91,41 +95,50 @@ REVIEW_TEMPLATE = """<!DOCTYPE html>
   </div>
 <script>
   var RID="__RID__", TEST="__TEST__";
-  function url(path,d){ return path+"?id="+RID+"&d="+encodeURIComponent(d)+TEST; }
+  function url(path,d,extra){ return path+"?id="+RID+"&d="+encodeURIComponent(d)+TEST+(extra||""); }
   function refresh(){
-    var pending=document.querySelectorAll('.approve:not(:disabled)').length;
-    document.getElementById('barcount').textContent=pending+" left to review";
-    if(pending===0){ document.getElementById('bar').style.display='none'; document.getElementById('alldone').style.display='block'; }
+    var pending=document.querySelectorAll('.card:not(.done):not(.skipped)').length;
+    var bc=document.getElementById('barcount'); if(bc) bc.textContent=pending+" left to review";
+    if(pending===0){ var bar=document.getElementById('bar'); if(bar) bar.style.display='none';
+      document.getElementById('alldone').style.display='block'; }
   }
-  async function approveCard(btn){
-    var card=btn.closest('.card'), d=card.dataset.d;
-    btn.disabled=true; btn.textContent='Applying...';
+  function finish(card,label){
+    card.classList.add('done');
+    card.querySelector('.cstatus').textContent=label;
+    card.querySelectorAll('.actions button').forEach(function(b){ b.remove(); });
+    refresh();
+  }
+  async function postApply(card,choice){
+    var d=card.dataset.d, mode=card.dataset.mode;
+    var btn=card.querySelector('.primary'); var old=btn.textContent;
+    btn.disabled=true; btn.textContent='Working...';
     try{
-      var r=await fetch(url('/apply',d),{method:'POST'});
+      var r=await fetch(url('/apply',d,choice?('&choice='+encodeURIComponent(choice)):''),{method:'POST'});
       var j=await r.json();
       if(r.ok && (j.status==='approved'||j.status==='already')){
-        card.classList.add('done'); btn.textContent='Approved';
-        card.querySelector('.skip').disabled=true;
-        card.querySelector('.cstatus').textContent='Applied';
-        refresh();
-      } else {
-        btn.disabled=false; btn.textContent='Approve';
-        alert('Could not apply: '+(j.message||'error'));
-      }
-    }catch(e){ btn.disabled=false; btn.textContent='Approve'; alert('Network error, try again.'); }
+        finish(card, mode==='notice'?'Acknowledged':'Applied');
+      } else { btn.disabled=false; btn.textContent=old; alert('Could not apply: '+(j.message||'error')); }
+    }catch(e){ btn.disabled=false; btn.textContent=old; alert('Network error, try again.'); }
+  }
+  function applyCard(btn){ postApply(btn.closest('.card')); }
+  function applyChoice(btn){
+    var card=btn.closest('.card');
+    var sel=card.querySelector('input[type=radio]:checked');
+    if(!sel){ alert('Please pick one option first.'); return; }
+    postApply(card, sel.value);
   }
   function skipCard(btn){
     var card=btn.closest('.card'), d=card.dataset.d;
     card.classList.add('skipped');
     card.querySelector('.cstatus').textContent='Skipped';
-    btn.disabled=true; card.querySelector('.approve').disabled=true;
-    card.querySelector('.approve').style.background='var(--muted)';
+    card.querySelectorAll('.actions button').forEach(function(b){ b.remove(); });
     fetch(url('/skip',d),{method:'POST'}).catch(function(){});
     refresh();
   }
   async function approveAll(){
-    var btns=[].slice.call(document.querySelectorAll('.approve:not(:disabled)'));
-    for(var i=0;i<btns.length;i++){ await approveCard(btns[i]); }
+    var cards=[].slice.call(document.querySelectorAll('.card:not(.done):not(.skipped)'))
+      .filter(function(c){ return c.dataset.mode!=='clarify'; });
+    for(var i=0;i<cards.length;i++){ await postApply(cards[i]); }
   }
   refresh();
 </script>
@@ -168,6 +181,18 @@ def _decode_payload(encoded_data: str):
 def _gid(finding: dict) -> str:
     """Stable id for one finding, used to track per-policy approve / skip state."""
     return finding.get("gap_id") or f"{finding.get('policy_name','')}|{finding.get('gap_type','')}"
+
+
+def _mode(finding: dict) -> str:
+    """How the dashboard handles a finding: edit | clarify | notice."""
+    if finding.get("mode"):
+        return finding["mode"]
+    gt = finding.get("gap_type", "")
+    if gt == "missing_coverage":
+        return "clarify"
+    if gt == "expired_document":
+        return "notice"
+    return "edit"
 
 
 def page(title, icon_html, headline, body_html, ref, timestamp):
@@ -424,53 +449,71 @@ def _apply_review(review_id, findings, test_mode):
 
 def _review_card(index, finding, test_mode, state) -> str:
     gap_type = finding.get("gap_type", "")
+    mode = _mode(finding)
     type_labels = {
         "wrong_reference": "Wrong reference", "outdated_reference": "Outdated reference",
-        "missing_coverage": "Missing coverage", "expired_document": "Expired document",
+        "missing_coverage": "Missing coverage", "expired_document": "Out of date",
     }
     type_label = type_labels.get(gap_type, gap_type.replace("_", " ").title())
     sev = "High priority" if finding.get("severity") == "High" else "Medium priority"
 
-    detail = ""
-    if gap_type in ("wrong_reference", "outdated_reference"):
+    tag = {"edit": "Approve to rewrite the policy text",
+           "clarify": "Needs your answer before it can be applied",
+           "notice": "For your awareness, no document is changed"}[mode]
+
+    # Detail + actions vary by mode
+    if mode == "edit":
         wrong = finding.get("wrong_reference", ""); correct = finding.get("correct_reference", "")
-        if wrong and correct:
-            detail = (f'<div class="chg"><span class="lbl">Currently</span>'
-                      f'<span class="old">{_h(wrong)}</span></div>'
-                      f'<div class="chg"><span class="lbl">Corrected to</span>'
-                      f'<span class="new">{_h(correct)}</span></div>')
-    elif gap_type in ("missing_coverage", "expired_document"):
-        action = finding.get("recommended_action", "")
-        if action:
-            detail = (f'<div class="chg"><span class="lbl">Action required</span>'
-                      f'<span class="act">{_h(action)}</span></div>')
+        detail = (f'<div class="chg"><span class="lbl">Currently in the document</span>'
+                  f'<span class="old">{_h(wrong)}</span></div>'
+                  f'<div class="chg"><span class="lbl">Will be corrected to</span>'
+                  f'<span class="new">{_h(correct)}</span></div>') if wrong and correct else ""
+        actions = ('<button class="primary" onclick="applyCard(this)">Approve and rewrite</button>'
+                   '<button class="skip" onclick="skipCard(this)">Skip</button>')
+    elif mode == "clarify":
+        q = finding.get("clarify_question", "Please choose how to handle this.")
+        opts = finding.get("clarify_options", [])
+        radios = "".join(
+            f'<label class="opt"><input type="radio" name="opt{index}" value="{_h(o.get("id",""))}">'
+            f'<span>{_h(o.get("label",""))}</span></label>'
+            for o in opts
+        )
+        detail = (f'<div class="chg"><span class="lbl">We need to know</span>'
+                  f'<span class="act">{_h(q)}</span></div><div class="opts">{radios}</div>')
+        actions = ('<button class="primary" onclick="applyChoice(this)">Apply my answer</button>'
+                   '<button class="skip" onclick="skipCard(this)">Skip</button>')
+    else:  # notice
+        action = finding.get("recommended_action", "") or finding.get("description", "")
+        detail = (f'<div class="chg"><span class="lbl">What to do</span>'
+                  f'<span class="act">{_h(action)}</span></div>')
+        actions = '<button class="primary" onclick="applyCard(this)">Mark as seen</button>'
 
     src = finding.get("source", {}) or {}
     src_html = (f'<p class="src">Checked against <a href="{_h(src.get("url",""))}" target="_blank" '
                 f'rel="noopener">{_h(src.get("name",""))}</a></p>') if src.get("name") else ""
 
     d1 = _encode_findings([finding])
-    done_attr = ' data-done="1"' if state == "approved" else ""
-    cls = "card done" if state == "approved" else ("card skipped" if state == "skipped" else "card")
-    btn_label = "Approved" if state == "approved" else "Approve"
-    btn_dis = " disabled" if state in ("approved", "skipped") else ""
-    status_txt = "Applied" if state == "approved" else ("Skipped" if state == "skipped" else "")
+    if state == "approved":
+        cls, status_txt = "card done", ("Applied" if mode != "notice" else "Acknowledged")
+        actions = ""
+    elif state == "skipped":
+        cls, status_txt = "card skipped", "Skipped"
+        actions = ""
+    else:
+        cls, status_txt = "card", ""
 
     return f"""
-      <div class="{cls}" data-d="{d1}"{done_attr}>
+      <div class="{cls}" data-d="{d1}" data-mode="{mode}">
         <div class="chead">
           <span class="idx">{index + 1}. {type_label}</span>
           <span class="sev">{sev}</span>
         </div>
         <h3>{_h(finding.get('policy_name',''))}</h3>
+        <p class="tag">{tag}</p>
         <p class="desc">{_h(finding.get('description',''))}</p>
         <div class="detail">{detail}</div>
         {src_html}
-        <div class="actions">
-          <button class="approve" onclick="approveCard(this)"{btn_dis}>{btn_label}</button>
-          <button class="skip" onclick="skipCard(this)"{btn_dis}>Skip</button>
-          <span class="cstatus">{status_txt}</span>
-        </div>
+        <div class="actions">{actions}<span class="cstatus">{status_txt}</span></div>
       </div>"""
 
 
@@ -526,6 +569,17 @@ def apply_ajax():
     findings = _findings_from_request(review_id, encoded_data)
     if not findings:
         return jsonify({"status": "error", "message": "Review not found."}), 404
+
+    # Chad's multiple-choice answer for a "clarify" finding decides what gets written.
+    choice = request.args.get("choice")
+    if choice:
+        for f in findings:
+            if _mode(f) == "clarify":
+                for opt in f.get("clarify_options", []):
+                    if opt.get("id") == choice:
+                        f["_insert_text"] = opt.get("insert")
+                        break
+
     result = _apply_review(review_id, findings, test_mode)
     return jsonify(result), (500 if result["status"] == "failed" else 200)
 
