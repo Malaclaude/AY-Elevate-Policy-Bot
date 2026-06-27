@@ -92,6 +92,14 @@
       }
     ],
     "created_at": "2026-06-27T14:27:48.863821",
-    "status": "pending"
+    "status": "approved",
+    "approved_findings": [
+      "ada_jurisdiction",
+      "insurance_expired",
+      "ofsted_camps_gap",
+      "working_together_outdated"
+    ],
+    "actioned_at": "2026-06-27T14:32:21.309402",
+    "test_mode": true
   }
 }

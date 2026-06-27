@@ -121,7 +121,8 @@ def check_working_together_version(policy_text: str):
             "policy_name": "Safeguarding Policy",
             "severity": "High",
             "source": SOURCES["working_together_2023"],
-            "wrong_reference": "Working Together to Safeguard Children 2018",
+            "wrong_reference": "Working Together to Safeguard Children Act 2018",
+            "search_text": "Working Together to Safeguard Children Act 2018",
             "correct_reference": "Working Together to Safeguard Children 2023",
             "description": (
                 "Policy references Working Together to Safeguard Children 2018. "
