@@ -37,22 +37,23 @@ def page(title, icon_html, headline, body_html, ref, timestamp):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
   <title>{title}</title>
   <style>
     * {{ box-sizing: border-box; }}
-    body {{ margin:0; padding:0; background:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; }}
+    body {{ margin:0; padding:0; background:#f3f0fa; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; }}
     .wrapper {{ min-height:100vh; padding:40px 16px; display:flex; align-items:center; justify-content:center; }}
-    .card {{ background:#ffffff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden; width:100%; max-width:520px; }}
-    .card-top {{ background:#0f172a; height:5px; }}
-    .card-body {{ padding:48px 40px 40px; text-align:center; }}
-    .card-footer {{ background:#f8fafc; border-top:1px solid #f1f5f9; padding:18px 40px; text-align:center; }}
-    .brand {{ margin:0 0 28px; font-size:11px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:#94a3b8; }}
-    .headline {{ margin:20px 0 16px; font-size:24px; font-weight:700; color:#0f172a; letter-spacing:-0.3px; line-height:1.2; }}
-    .footer-text {{ margin:0; font-size:12px; color:#94a3b8; line-height:1.8; }}
-    .footer-text a {{ color:#94a3b8; text-decoration:none; }}
-    .doc-btn {{ display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; padding:14px 28px; border-radius:10px; text-decoration:none; margin-top:4px; }}
+    .card {{ background:#ffffff; border-radius:26px; overflow:hidden; width:100%; max-width:520px; box-shadow:0 10px 40px rgba(76,29,149,0.12); }}
+    .card-top {{ background:#ece7fb; background:linear-gradient(160deg,#e7defb 0%,#f3e3f4 60%,#ffffff 100%); height:90px; }}
+    .card-body {{ padding:0 40px 44px; text-align:center; margin-top:-44px; }}
+    .card-footer {{ background:#faf8ff; border-top:1px solid #eee9fb; padding:20px 40px; text-align:center; }}
+    .brand {{ margin:0 0 22px; font-size:12px; font-weight:800; letter-spacing:3.5px; text-transform:uppercase; color:#7c3aed; }}
+    .headline {{ margin:22px 0 16px; font-size:25px; font-weight:800; color:#1e1b2e; letter-spacing:-0.4px; line-height:1.2; }}
+    .footer-text {{ margin:0; font-size:12px; color:#a78bb5; line-height:1.8; }}
+    .footer-text a {{ color:#7c3aed; text-decoration:none; font-weight:700; }}
+    .doc-btn {{ display:inline-block; background:#7c3aed; color:#ffffff; font-size:14px; font-weight:700; padding:15px 32px; border-radius:100px; text-decoration:none; margin-top:4px; box-shadow:0 8px 22px rgba(124,58,237,0.30); }}
     @media (max-width: 480px) {{
-      .card-body {{ padding:36px 24px 32px; }}
+      .card-body {{ padding:0 24px 34px; }}
       .card-footer {{ padding:16px 24px; }}
       .headline {{ font-size:22px; }}
     }}
@@ -63,8 +64,8 @@ def page(title, icon_html, headline, body_html, ref, timestamp):
     <div class="card">
       <div class="card-top"></div>
       <div class="card-body">
-        <p class="brand">Adding You</p>
         {icon_html}
+        <p class="brand">Adding You</p>
         <h1 class="headline">{headline}</h1>
         {body_html}
       </div>
@@ -165,23 +166,26 @@ def approve():
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Approving...</title>
+  <meta name="color-scheme" content="light">
   <style>
     *{{box-sizing:border-box;}}
-    body{{margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;}}
+    body{{margin:0;padding:0;background:#f3f0fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;}}
     .wrap{{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;}}
-    .card{{background:#fff;border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:48px 40px;text-align:center;max-width:440px;width:100%;}}
-    .spinner{{width:48px;height:48px;border:3px solid #e2e8f0;border-top-color:#0f172a;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 24px;}}
+    .card{{background:#fff;border-radius:26px;box-shadow:0 10px 40px rgba(76,29,149,0.12);padding:52px 40px;text-align:center;max-width:440px;width:100%;}}
+    .brand{{margin:0 0 26px;font-size:12px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#7c3aed;}}
+    .spinner{{width:50px;height:50px;border:4px solid #ede9f5;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 26px;}}
     @keyframes spin{{to{{transform:rotate(360deg)}}}}
-    h2{{margin:0 0 8px;font-size:20px;font-weight:700;color:#0f172a;}}
-    p{{margin:0;font-size:14px;color:#64748b;line-height:1.6;}}
-    .ref{{margin-top:24px;font-size:11px;color:#cbd5e1;}}
-    @media(max-width:480px){{.card{{padding:36px 24px;}}}}
+    h2{{margin:0 0 8px;font-size:21px;font-weight:800;color:#1e1b2e;letter-spacing:-0.3px;}}
+    p{{margin:0;font-size:14px;color:#8b86a0;line-height:1.6;}}
+    .ref{{margin-top:26px;font-size:11px;color:#c4bbd9;}}
+    @media(max-width:480px){{.card{{padding:40px 24px;}}}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       {test_banner}
+      <p class="brand">Adding You</p>
       <div class="spinner"></div>
       <h2>Applying corrections...</h2>
       <p>Updating your policy documents. This will only take a moment.</p>
@@ -199,8 +203,9 @@ def approve():
       document.querySelector('h2').textContent = 'Tap to approve';
       document.querySelector('p').innerHTML =
         '<button onclick="document.getElementById(\\'f\\').submit()" '
-        'style="background:#0f172a;color:#fff;border:none;padding:14px 28px;'
-        'border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px;">'
+        'style="background:#7c3aed;color:#fff;border:none;padding:15px 32px;'
+        'border-radius:100px;font-size:14px;font-weight:700;cursor:pointer;margin-top:12px;'
+        'box-shadow:0 8px 22px rgba(124,58,237,0.30);">'
         'Confirm approval</button>';
     }}, 3000);
   </script>
