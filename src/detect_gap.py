@@ -233,12 +233,12 @@ def check_insurance_expiry() -> dict:
             "The insurance certificate on file (Simply Business, policy ref CHBS4860808XB) expired on 18 February 2026. "
             "Cover ran 19 February 2025 to 18 February 2026. "
             "Operating in schools without valid employers' liability insurance is a legal breach and would void any incident claim. "
-            "Renewed certificate from Chad is outstanding."
+            "A valid renewed certificate has not yet been uploaded."
         ),
         "original_excerpt": None,
         "recommended_action": (
-            "Obtain the renewed certificate from Chad immediately and replace the expired document in the shared policy drive. "
-            "Confirm renewal dates and ensure the certificate is shared with any schools requiring proof of cover."
+            "Upload the renewed certificate to the shared policy drive to replace the expired one, "
+            "confirm the new cover dates, and share proof of cover with any schools that require it."
         ),
         "detection_method": "corpus_confirmed",
     }
