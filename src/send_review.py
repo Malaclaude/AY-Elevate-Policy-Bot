@@ -174,9 +174,6 @@ def _finding_card(finding: dict, index: int, review_id: str, test_mode: bool) ->
                 </tr>
               </table>"""
 
-    approve_url = _action_url([finding], review_id, "approve", test_mode)
-    skip_url = _action_url([finding], review_id, "reject", test_mode)
-
     return f"""
           <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:16px;background:#ffffff;border:1px solid #e6e6e6;border-radius:14px;">
             <tr>
@@ -193,16 +190,6 @@ def _finding_card(finding: dict, index: int, review_id: str, test_mode: bool) ->
                 <p style="margin:0;font-size:14px;color:#5a5a5a;line-height:1.7;">{description}</p>
                 {detail}
                 <p style="margin:16px 0 0;font-size:12px;color:#9a9a9a;">Checked against <a href="{source_url}" style="color:#5a5a5a;text-decoration:underline;">{source_name}</a></p>
-                <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;">
-                  <tr>
-                    <td>
-                      <a href="{approve_url}" target="_blank" style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:13px;font-weight:700;padding:12px 26px;border-radius:8px;text-decoration:none;letter-spacing:0.2px;">Approve this correction</a>
-                    </td>
-                    <td style="padding-left:18px;">
-                      <a href="{skip_url}" target="_blank" style="font-size:13px;font-weight:600;color:#9a9a9a;text-decoration:none;">Skip</a>
-                    </td>
-                  </tr>
-                </table>
               </td>
             </tr>
           </table>"""
@@ -217,8 +204,9 @@ def build_email_html(findings: list, review_id: str, test_mode: bool = False) ->
     finding_cards_html = "".join(
         _finding_card(f, i, review_id, test_mode) for i, f in enumerate(findings)
     )
-    approve_all_url = _action_url(findings, review_id, "approve", test_mode)
-    decline_all_url = _action_url(findings, review_id, "reject", test_mode)
+    review_base = APPROVE_BASE_URL.replace("/approve", "/review")
+    rtest = "&test=1" if test_mode else ""
+    review_url = f"{review_base}?id={review_id}&d={encode_findings(findings)}{rtest}"
 
     test_banner = (
         '<tr><td style="padding:0 40px 8px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
@@ -259,7 +247,8 @@ def build_email_html(findings: list, review_id: str, test_mode: bool = False) ->
             <td bgcolor="#ece7fb" style="background:#ece7fb;background:linear-gradient(160deg,#e7defb 0%,#f3e3f4 50%,#fbfbfd 100%);padding:46px 40px 40px;text-align:center;">
               <p style="margin:0 0 24px;font-size:12px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#4b3f63;">Adding You</p>
               <h1 style="margin:0 0 14px;font-size:31px;font-weight:800;color:#1d1730;letter-spacing:-0.7px;line-height:1.16;">Your policies,<br>checked and current.</h1>
-              <p style="margin:0 auto;max-width:430px;font-size:15px;color:#4a4458;line-height:1.7;">This month's compliance audit for Elevate Performance Academy found {count} {issue_word} to review. Approve each correction below, or all at once.</p>
+              <p style="margin:0 auto 26px;max-width:430px;font-size:15px;color:#4a4458;line-height:1.7;">This month's compliance audit for Elevate Performance Academy found {count} {issue_word} to review. Open the review to approve each correction.</p>
+              <a href="{review_url}" target="_blank" style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:15px;font-weight:700;padding:15px 38px;border-radius:10px;text-decoration:none;letter-spacing:0.2px;">Review and approve</a>
             </td>
           </tr>
 
@@ -284,17 +273,15 @@ def build_email_html(findings: list, review_id: str, test_mode: bool = False) ->
             </td>
           </tr>
 
-          <!-- Approve all (convenience) -->
+          <!-- Single CTA to the review page -->
           <tr>
             <td style="padding:14px 40px 40px;">
               <table cellpadding="0" cellspacing="0" border="0" width="100%" class="chip" style="background:#fafafa;border:1px solid #ececec;border-radius:14px;">
                 <tr>
-                  <td style="padding:24px 28px;text-align:center;">
-                    <p class="ink" style="margin:0 0 16px;font-size:15px;color:#2a2a2a;font-weight:600;">Happy with everything?</p>
-                    <a href="{approve_all_url}" target="_blank" style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:14px;font-weight:700;padding:14px 34px;border-radius:9px;text-decoration:none;letter-spacing:0.2px;">Approve all corrections</a>
-                    <p style="margin:16px 0 0;font-size:12px;">
-                      <a href="{decline_all_url}" target="_blank" class="muted" style="color:#9a9a9a;text-decoration:underline;">Decline all and log for review</a>
-                    </p>
+                  <td style="padding:26px 28px;text-align:center;">
+                    <p class="ink" style="margin:0 0 6px;font-size:16px;color:#1a1a1a;font-weight:700;">Approve when you are ready</p>
+                    <p class="muted" style="margin:0 0 18px;font-size:13px;color:#8a8a8a;line-height:1.6;">Opens one page with every correction. Approve them individually, all in one place. Nothing changes until you do.</p>
+                    <a href="{review_url}" target="_blank" style="display:inline-block;background:#1a1a1a;color:#ffffff;font-size:14px;font-weight:700;padding:14px 34px;border-radius:9px;text-decoration:none;letter-spacing:0.2px;">Review and approve corrections</a>
                   </td>
                 </tr>
               </table>

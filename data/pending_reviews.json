@@ -1,5 +1,5 @@
 {
-  "pptest01": {
+  "revtest1": {
     "status": "approved",
     "approved_findings": [
       "ada_jurisdiction",
@@ -19,14 +19,17 @@
         "search_text": "Americans with Disabilities Act (ADA)",
         "correct_reference": "Equality Act 2010",
         "description": "Policy cites the Americans with Disabilities Act, a US federal law with no legal standing in England. Elevate operates under the Equality Act 2010, which covers disability, age, race, sex, and other protected characteristics. This would be flagged immediately by any Ofsted inspector, school safeguarding lead, or local authority.",
-        "original_excerpt": "We adhere to relevant accessibility standards such as the Americans with Disabilities Act (ADA) and Web Content Accessibility Guidelines (WCAG). Our safeguarding policy follows Working Together to Safeguard Children 2018.",
+        "original_excerpt": "such as the Americans with Disabilities Act (ADA) and WCAG. Our safeguarding policy follows Working Together to Safeguard Children 2018.",
         "detection_method": "text_scan"
       }
     ],
-    "actioned_at": "2026-06-27T13:45:02.218825",
-    "test_mode": true
+    "actioned_at": "2026-06-27T14:27:34.705242",
+    "test_mode": true,
+    "skipped_findings": [
+      "insurance_expired"
+    ]
   },
-  "5d6e35c6": {
+  "66b4d10b": {
     "findings": [
       {
         "gap_id": "ada_jurisdiction",
@@ -88,7 +91,7 @@
         "detection_method": "absence_check"
       }
     ],
-    "created_at": "2026-06-27T13:45:25.029116",
+    "created_at": "2026-06-27T14:27:48.863821",
     "status": "pending"
   }
 }
