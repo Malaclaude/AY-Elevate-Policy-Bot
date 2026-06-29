@@ -1,0 +1,47 @@
+{
+  "client": "Elevate Performance Academy",
+  "renewal_window_days": 60,
+  "items": [
+    {
+      "id": "insurance_el_chbs4860808xb",
+      "name": "Employers' Liability Insurance",
+      "category": "Insurance",
+      "reference": "Simply Business, policy CHBS4860808XB",
+      "issued": "2025-02-19",
+      "expires": "2026-02-18",
+      "owner": "Chad Thorne",
+      "source": "https://www.simplybusiness.co.uk/",
+      "notes": "Caught expired by the policy bot. Upload the renewed certificate to set the next date."
+    },
+    {
+      "id": "dbs_enhanced_staff",
+      "name": "Enhanced DBS checks (staff and volunteers)",
+      "category": "DBS",
+      "reference": "Disclosure and Barring Service",
+      "expires": null,
+      "owner": "Chad Thorne",
+      "source": "https://www.gov.uk/government/organisations/disclosure-and-barring-service",
+      "notes": "No renewal date on file. Add the earliest staff DBS renewal so it can be tracked."
+    },
+    {
+      "id": "paediatric_first_aid",
+      "name": "Paediatric First Aid certificate",
+      "category": "First aid",
+      "reference": "Ofqual-regulated provider",
+      "expires": null,
+      "owner": "Chad Thorne",
+      "source": "https://www.gov.uk/government/publications/early-years-foundation-stage-framework--2",
+      "notes": "No expiry on file. First aid certificates typically last 3 years. Add the certificate date."
+    },
+    {
+      "id": "ofsted_registration",
+      "name": "Ofsted childcare registration or exemption",
+      "category": "Ofsted",
+      "reference": "Ofsted / Childcare (Exemptions from Registration) Order 2008",
+      "expires": null,
+      "owner": "Chad Thorne",
+      "source": "https://www.gov.uk/guidance/registration-exemptions",
+      "notes": "Confirm registration status and any review date so it can be tracked."
+    }
+  ]
+}

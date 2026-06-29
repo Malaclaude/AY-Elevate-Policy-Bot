@@ -52,8 +52,18 @@ def run_monthly_check():
         logger.error(f"Monthly check failed: {e}")
 
 
+def run_daily_expiry_check():
+    """Compliance calendar: alert if any tracked document is expired or due soon."""
+    try:
+        from expiry_tracker import check_and_alert
+        n = check_and_alert()
+        logger.info(f"Daily expiry check complete. {n} item(s) flagged.")
+    except Exception as e:
+        logger.error(f"Daily expiry check failed: {e}")
+
+
 def start_scheduler():
-    """Start the APScheduler cron job — 1st of every month at 9am UTC."""
+    """Monthly wording audit (1st, 9am UTC) + daily compliance expiry check (8am UTC)."""
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=run_monthly_check,
@@ -62,10 +72,18 @@ def start_scheduler():
         name="Monthly Elevate Policy Check",
         replace_existing=True,
     )
+    scheduler.add_job(
+        func=run_daily_expiry_check,
+        trigger=CronTrigger(hour=8, minute=0),
+        id="daily_expiry_check",
+        name="Daily Compliance Expiry Check",
+        replace_existing=True,
+    )
     scheduler.start()
 
     next_run = scheduler.get_job("monthly_policy_check").next_run_time
-    logger.info(f"Scheduler started. Next run: {next_run.strftime('%d %B %Y at %H:%M UTC')}")
+    logger.info(f"Scheduler started. Next wording audit: {next_run.strftime('%d %B %Y at %H:%M UTC')}")
+    logger.info("Daily compliance expiry check scheduled for 08:00 UTC.")
     return scheduler
 
 

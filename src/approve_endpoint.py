@@ -660,6 +660,21 @@ def confirm():
     ), 200
 
 
+@app.route("/calendar", methods=["GET"])
+def calendar():
+    """Read-only compliance expiry calendar (the always-on compliance diary)."""
+    try:
+        from expiry_tracker import load_tracker, evaluate, render_calendar_html
+        tracker = load_tracker()
+        ev = evaluate(tracker)
+        return render_calendar_html(
+            ev, client=tracker.get("client", ""),
+            window=tracker.get("renewal_window_days", 60), as_page=True
+        ), 200
+    except Exception as e:
+        return f"Compliance calendar unavailable: {e}", 500
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "service": "ay-policy-bot-webhook"}), 200
