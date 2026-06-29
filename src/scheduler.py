@@ -74,16 +74,16 @@ def start_scheduler():
     )
     scheduler.add_job(
         func=run_daily_expiry_check,
-        trigger=CronTrigger(hour=8, minute=0),
-        id="daily_expiry_check",
-        name="Daily Compliance Expiry Check",
+        trigger=CronTrigger(day=1, hour=8, minute=0),
+        id="monthly_expiry_check",
+        name="Monthly Compliance Expiry Check",
         replace_existing=True,
     )
     scheduler.start()
 
     next_run = scheduler.get_job("monthly_policy_check").next_run_time
     logger.info(f"Scheduler started. Next wording audit: {next_run.strftime('%d %B %Y at %H:%M UTC')}")
-    logger.info("Daily compliance expiry check scheduled for 08:00 UTC.")
+    logger.info("Compliance expiry check scheduled monthly (1st, 08:00 UTC).")
     return scheduler
 
 
